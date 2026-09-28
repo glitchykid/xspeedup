@@ -31,10 +31,23 @@ export interface RegistryEntry {
   key: string;
   value: string;
   reason: string;
+  canChange: boolean;
 }
 export interface RegistryScan {
   id: string;
   entries: RegistryEntry[];
+  truncated: boolean;
+  warnings: string[];
+}
+export interface FolderScan {
+  id: string;
+  createdAt: string;
+  roots: string[];
+  entries: { id: string; path: string; createdUtc: string }[];
+  visited: number;
+  skipped: number;
+  complete: boolean;
+  canContinue: boolean;
 }
 export interface ServiceItem {
   id: string;
@@ -57,7 +70,7 @@ export interface ProcessItem {
 export interface HistoryItem {
   id: string;
   createdAt: string;
-  kind: 'cleanup' | 'registry' | 'services';
+  kind: 'cleanup' | 'registry' | 'registry-v2' | 'services' | 'folders' | 'memory';
   summary: string;
   canRestore: boolean;
   restored: boolean;
@@ -76,6 +89,10 @@ export interface RequestMap {
   'cleanup.apply': { scanId: string; categoryIds: string[] };
   'registry.scan': Record<string, never>;
   'registry.apply': { scanId: string; entryIds: string[] };
+  'folders.scan': Record<string, never>;
+  'folders.continue': { scanId: string };
+  'folders.apply': { scanId: string; entryIds: string[] };
+  'memory.release': { processId: number; startTime: string };
   'services.list': Record<string, never>;
   'services.disable': { serviceIds: string[] };
   'processes.list': Record<string, never>;
@@ -89,6 +106,10 @@ export interface ResponseMap {
   'cleanup.apply': ActionResult;
   'registry.scan': RegistryScan;
   'registry.apply': ActionResult;
+  'folders.scan': FolderScan;
+  'folders.continue': FolderScan;
+  'folders.apply': ActionResult;
+  'memory.release': ActionResult;
   'services.list': ServiceItem[];
   'services.disable': ActionResult;
   'processes.list': ProcessItem[];

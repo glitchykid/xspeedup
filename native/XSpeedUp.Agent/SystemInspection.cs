@@ -24,7 +24,7 @@ public static class SystemInspection
             User = Environment.UserName
         };
     }
-    private static bool CanClose(Process process)
+    internal static bool CanClose(Process process)
     {
         using var current = Process.GetCurrentProcess();
         if (process.Id == Environment.ProcessId || process.SessionId != current.SessionId || process.MainWindowHandle == IntPtr.Zero) return false;

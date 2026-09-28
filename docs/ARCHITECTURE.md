@@ -30,15 +30,15 @@ The first vertical slice is **scan files -> select categories -> native confirma
 
 ## Interface design and preferences
 
-`src/styles.css` defines shared semantic color tokens for light and dark themes. Every screen uses the same brutalist geometry, typography, borders, hard shadows and control states. Accent colors remain solid, and dark surfaces have explicit contrasting borders. Theme-specific colors are confined to the token declarations instead of duplicated page styles.
+`src/styles.css` defines semantic light/dark Glass Morphism tokens: translucent surfaces, soft shadows, clear borders and readable selected states. Reduced-transparency and forced-color modes have explicit fallbacks. `ArtIcon.svelte` addresses generated navigation icons in a transparent atlas; small action glyphs remain vectors for sharpness.
 
-`src/lib/theme.ts` resolves a valid stored preference or the system preference, and applies it before Svelte mounts. `ThemeSwitch.svelte` owns the two-button control and uses Svelte 5 state plus explicit event handlers. The key `xspeedup.theme` is stored in the renderer's localStorage; failures are contained so that the interface remains usable. Electron shows the window only once its initial content is ready. Switching themes does not remount pages or invoke the Windows agent.
+`src/lib/preferences.ts` resolves stored theme and locale preferences before Svelte mounts. Keys are `xspeedup.theme` and `xspeedup.locale`. Storage failures leave session controls usable. `shared/i18n.ts` contains six complete UI/confirmation dictionaries shared by the renderer and Electron. Preload passes the document language separately from operation arguments; Electron validates it against the supported locale list. Locale is a presentation choice and grants no additional authority. Diagnostics retain their original language. Changing preferences does not remount pages or invoke maintenance.
 
 ## Trust boundary
 
 The renderer uses `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, a restrictive CSP, denied permissions, and blocked navigation/new windows/webviews. Only the app's main frame may invoke the dedicated IPC handler. Renderer-controlled paths and shell commands are not accepted.
 
-The agent accepts fixed operation names and category/service IDs. Cleanup and registry changes require an in-memory, single-use scan ID, valid for 15 minutes. The renderer never owns the file manifest. A crashed/restarted agent therefore invalidates old scans.
+The agent accepts fixed operation names and category/service IDs. File, folder and registry changes require an in-memory, single-use scan ID, valid for 15 minutes. Folder continuation retains bounded depth-first enumerators across short scan slices; a new scan or deletion disposes them. The renderer never supplies arbitrary file or registry paths. A crashed/restarted agent invalidates old scans.
 
 Electron serializes requests and holds a native confirmation dialog before each mutation. The dialog uses agent-provided records rather than trusting display strings from the renderer. Running windows are kept open during active work. The agent has a two-minute watchdog; an interrupted operation is never automatically retried. Its error instructs the user to inspect history and rescan.
 
@@ -46,7 +46,9 @@ The stdio executable is an implementation component and does not provide its own
 
 ## Persistence and recovery
 
-Each registry/service operation writes and flushes a journal before a change. Files use a unique temporary name and atomic replacement. Backups preserve original registry value types/strings or the original service startup modes. Restores record progress per entry and preserve conflicting current values. No crash-consistency claim is made across an OS registry/service mutation and its following journal update; retry logic handles already-restored values, and the backup remains available if the process dies in between.
+Each registry/service operation writes and flushes a journal before a change. Files use a unique temporary name and atomic replacement. `RegistryMaintenance` owns the candidate policy; `WindowsRegistryStore` owns typed snapshots and transactional compare/delete/restore. Original registry value types/data or service startup modes are preserved. `registry-v2` journal entries coexist with legacy `registry` backups. Restores record per-entry progress and preserve conflicts. Recreated keys inherit parent ACLs; custom ACL/security auditing metadata is not captured. No cross-resource atomicity is claimed between the OS transaction and the filesystem journal.
+
+`MemoryCleaner` revalidates a selected process and trims its working set through a process handle. Its OS adapter is injected in mutation tests. `EmptyFolders` uses volume/file identity plus a verified final handle path, and lets Windows reject nonempty directory disposition. Neither operation invokes arbitrary shell commands.
 
 File cleanup records an audit entry before starting and a count/result after completion. It deliberately does not store deleted contents. A crash can leave the initial audit record and partially completed deletion; the next scan establishes current state.
 

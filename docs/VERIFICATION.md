@@ -1,5 +1,18 @@
 # Verification
 
+## 0.3.0 — 2026-09-28
+
+- Native regression harness: 60 assertions passed. New coverage includes read-only HKLM access, protected scan roots, changed/nonempty/replaced folders, single-use manifests, typed registry snapshots, backup-before-delete ordering, conflicting restores, non-MSI removal evidence, and memory-process eligibility/identity checks.
+- TypeScript suite: 5 tests passed, including complete six-language dictionaries and rejection of renderer-supplied paths or unbounded selections.
+- Svelte diagnostics: 0 errors and 0 warnings; TypeScript and .NET builds passed.
+- Development and packaged Electron integration passed for seven screens, light/dark themes and all six locales. Active navigation background/text colors are equal before and during hover.
+- Theme/system fallback, keyboard theme controls, language persistence, selection preservation and renderer isolation passed. All localized screens fit the minimum window width; overview screenshots cover both themes at 1020 × 720.
+- Generated hero and transparent navigation atlas load from packaged assets. PNG corner alpha and the atlas's 2:1 geometry were verified. The packaged executable has the generated application icon.
+- Actual read-only registry scanning found candidates in the broader catalog; linked and malformed registry entries produced explicit skips.
+- Windows x64 NSIS installer built as `X-SpeedUp-Setup-0.3.0.exe`, product version 0.3.0. The unpacked executable was tested without a development SDK dependency.
+
+File/folder deletion tests use isolated fixtures. Registry/service/memory mutations use fake adapters; native registry inspection and Electron scans are read-only. A localized memory confirmation is intercepted and canceled when an eligible application is available. No real application's memory was trimmed and no host registry/service settings were changed. Windows registry transaction writes/restoration, OS working-set trimming, administrative service changes and installer installation/uninstallation still need disposable-VM acceptance testing. The installer is unsigned.
+
 ## 0.2.1 — 2026-09-28
 
 - Production build and Svelte/TypeScript checks passed after the packaging correction.

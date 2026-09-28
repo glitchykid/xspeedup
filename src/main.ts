@@ -1,6 +1,6 @@
 import { mount } from 'svelte';
 import App from './App.svelte';
-import { applyTheme, preferredTheme } from './lib/theme';
 import './styles.css';
-applyTheme(preferredTheme());
+import { applyPreferences, preferredLocale, preferredTheme } from './lib/preferences';
+applyPreferences(preferredTheme(), preferredLocale(), false);
 mount(App, { target: document.getElementById('app')! });

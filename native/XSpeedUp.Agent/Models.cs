@@ -12,8 +12,11 @@ public record CleanupRoot(string Id, string Name, string Description, string Pat
 public record FileCandidate(string Path, long Bytes, DateTime ModifiedUtc);
 public record CleanupCategory(string Id, string Name, string Description, int Files, long Bytes, int Skipped, string[] Samples);
 public record CleanupScan(string Id, DateTime CreatedAt, List<CleanupCategory> Categories, bool Truncated);
-public record RegistryEntry(string Id, string Name, string Key, string Value, string Reason);
-public record RegistryScan(string Id, List<RegistryEntry> Entries);
+public record RegistryEntry(string Id, string Name, string Key, string Value, string Reason, bool CanChange = true);
+public record RegistryScan(string Id, List<RegistryEntry> Entries, bool Truncated = false, List<string>? Warnings = null);
+public record FolderCandidate(string Id, string Path, DateTime CreatedUtc, ulong Identity, uint Volume);
+public record FolderScan(string Id, DateTime CreatedAt, string[] Roots, List<FolderCandidate> Entries,
+    int Visited, int Skipped, bool Complete, bool CanContinue);
 public record ServiceDefinition(string Id, string Name, string Description, string Impact, string[] Profiles);
 public record ServiceItem(string Id, string Name, string Description, string Impact, string[] Profiles,
     bool Installed, string Status, uint StartMode, bool CanChange);
@@ -35,4 +38,5 @@ public sealed class JournalEntry
     public bool Restored { get; set; }
     public List<string> Details { get; set; } = [];
     public List<Backup> Backups { get; set; } = [];
+    public List<RegistryBackup> RegistryBackups { get; set; } = [];
 }

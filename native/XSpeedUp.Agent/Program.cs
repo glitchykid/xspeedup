@@ -11,7 +11,9 @@ public static class Program
         Console.OutputEncoding = new UTF8Encoding(false);
         var journal = Journal.Create();
         var cleanup = Cleanup.Create(journal);
-        var registry = new RegistryCleaner(journal);
+        var registry = new RegistryMaintenance(journal);
+        using var folders = EmptyFolders.Create(journal);
+        var memory = new MemoryCleaner(journal);
         var services = new Services(journal);
         while (await Console.In.ReadLineAsync() is { } line)
         {
@@ -32,7 +34,8 @@ public static class Program
                     if (entry.Restored) throw new InvalidOperationException("Копия уже восстановлена.");
                     return entry.Kind switch
                     {
-                        "registry" => registry.Restore(entry),
+                        "registry" => new RegistryCleaner(journal).Restore(entry),
+                        "registry-v2" => registry.Restore(entry),
                         "services" => services.Restore(entry),
                         _ => throw new InvalidOperationException("Для удаления файлов восстановление недоступно.")
                     };
@@ -44,6 +47,10 @@ public static class Program
                     "cleanup.apply" => cleanup.Apply(Text("scanId"), Strings("categoryIds")),
                     "registry.scan" => registry.Scan(),
                     "registry.apply" => registry.Apply(Text("scanId"), Strings("entryIds")),
+                    "folders.scan" => folders.Scan(),
+                    "folders.continue" => folders.Continue(Text("scanId")),
+                    "folders.apply" => folders.Apply(Text("scanId"), Strings("entryIds")),
+                    "memory.release" => memory.Release(args.GetProperty("processId").GetInt32(), Text("startTime")),
                     "services.list" => services.List(),
                     "services.disable" => services.Disable(Strings("serviceIds")),
                     "processes.list" => SystemInspection.Processes(),

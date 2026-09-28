@@ -92,6 +92,7 @@ try
     Check(fakeServices.Modes["MapsBroker"] == 3 && fakeServices.Modes["Fax"] == 3, "Service restore reinstates the original mode only where unchanged");
     fakeServices.Modes["Fax"] = 4;
     Check(serviceManager.Restore(serviceBackup).Changed == 1 && serviceJournal.Read(serviceBackupId).Restored, "Partial service restore can be retried safely");
+    MaintenanceTests.Run(workspace, Check, Reject);
     Console.WriteLine($"All {assertions} native assertions passed. Fixtures: {workspace}");
 }
 finally

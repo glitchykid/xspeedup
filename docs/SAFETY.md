@@ -18,9 +18,17 @@ The deletion path checks root containment, refuses reparse points/junctions on a
 
 ## Registry
 
-Only `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` is writable. Candidate values must be `REG_SZ` or `REG_EXPAND_SZ` and refer to an unambiguous, absolute `.exe` path on an available local fixed drive. Unknown access failures, relative commands, unquoted executable paths with spaces, scripts, network paths and removable drives are excluded.
+`RegistryMaintenance` has a fixed target catalog: Run/RunOnce values, leaf children of App Paths/Uninstall under HKCU (native view) and HKLM (32/64-bit views), and empty non-system application leaves up to three levels below HKCU Software. HKLM writes need administrator rights. No arbitrary paths are accepted from the renderer or a backup outside this catalog.
 
-The value, type, and executable absence are checked again before deletion. The original, unexpanded value is persisted first. Restore writes a value only if its name is absent; identical values are treated as already restored, and conflicting values/types are preserved. A reinstall can make a former stale entry useful, so review candidates. This is targeted startup hygiene, not a generic registry optimizer or proof of performance improvement.
+Startup commands must be empty strings or unambiguous absolute missing executables. App Paths targets must be missing executables. Uninstall leftovers require a missing install directory and uninstaller, plus missing additional executable/icon references when present. MSI/system/child-component entries, missing evidence, ambiguous commands, network/removable/offline paths and redirected ancestors are excluded. Empty means zero values and zero child keys; an arbitrary empty string outside startup is not considered disposable.
+
+Supported snapshot types are string, expandable string, DWORD, QWORD, binary, multi-string and none. Unsupported/malformed types and oversized values are skipped. Entries containing child keys are not removed recursively. A transaction re-reads the key/value and compares the snapshot before deletion. Unavailable transactions cause a skip/error rather than an unsafe fallback. Backups are flushed first. Restores preserve changed keys/values, recreate only a leaf whose parent still exists, and can be retried. Recreated keys inherit the parent's permissions; custom ACLs/auditing metadata are not backed up. Legacy startup backups remain restorable. Empty keys may still have meaning to an installed program, so review the list; no performance benefit is promised.
+
+## Empty folders
+
+This separate tool scans all available fixed/removable local drives with incremental continuation (8 seconds or 20,000 traversal steps per slice, 5,000 accumulated candidates, maximum depth 128). Results explicitly show completion or limits and skip counts. Network drives, inaccessible paths, protected system/application trees, the current user's AppData, known profile roots, reparse points, `.git`, `.svn`, `.hg` and `node_modules` are excluded. Protected profile roots can be traversed but never removed; protected trees are not traversed.
+
+Selections are bounded to 256 manifest IDs. Before deletion the agent verifies containment, ancestor links, final path, volume/file identity, creation time and directory attributes. Windows refuses deletion if the directory has become nonempty; no recursive delete is issued. Directory handles used for traversal are closed first. Parent folders are not automatically removed. Deletion bypasses the Recycle Bin and has no recovery backup. A scan is not proof that an empty folder is unnecessary.
 
 ## Services
 
@@ -43,6 +51,8 @@ Only accessible applications with top-level windows in the current interactive s
 
 ## Backups and practical limits
 
+Memory release uses the same visible-process eligibility and PID/start-time checks as normal application closure, then calls `EmptyWorkingSet` through that process's handle. It never closes the process, changes standby-list privileges or invokes an undocumented memory command. The returned byte count is a momentary working-set reduction, not globally freed/unique memory. Pages may return immediately, subsequent access may be slower and leaks are not fixed. Mutating memory tests use a fake adapter; real OS behavior requires VM acceptance testing.
+
 Backups are local to the Windows account. They are not System Restore points and do not contain file contents. Keep the history directory to retain rollback capability. The app does not import arbitrary backups or edit arbitrary registry keys. A power loss or disk failure can interrupt an action; inspect the existing history and current state before retrying. Backups are not a substitute for normal system/file backups.
 
-Acceptance checks that change live service startup modes should be run in a disposable VM with administrative rights. Automated development tests use in-memory settings, and read-only desktop tests never execute maintenance operations on the host machine.
+Acceptance checks for registry transaction writes/restoration, real working-set trimming and live service startup modes should run in a disposable VM, with administrative rights where required. Automated mutation tests use in-memory adapters or isolated filesystem fixtures. Read-only desktop tests never execute maintenance operations on the host machine.

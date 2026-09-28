@@ -7,6 +7,42 @@ namespace XSpeedUp.Agent;
 
 internal static class Native
 {
+    [DllImport("psapi.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EmptyWorkingSet(SafeProcessHandle process);
+
+    public static FolderCandidate InspectDirectory(string path)
+    {
+        using var directory = CreateFile(path, 0x80, 7, IntPtr.Zero, 3, 0x02000000 | 0x00200000, IntPtr.Zero);
+        if (directory.IsInvalid || !GetFileInformationByHandle(directory, out var info)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        if ((info.Attributes & (uint)FileAttributes.Directory) == 0 || (info.Attributes & (uint)FileAttributes.ReparsePoint) != 0)
+            throw new IOException("Not a regular directory.");
+        long created = ((long)info.Created.dwHighDateTime << 32) | (uint)info.Created.dwLowDateTime;
+        return new(Guid.NewGuid().ToString("N"), path, DateTime.FromFileTimeUtc(created), ((ulong)info.IndexHigh << 32) | info.IndexLow, info.Volume);
+    }
+    public static void DeleteEmptyDirectory(FolderCandidate candidate)
+    {
+        using var directory = CreateFile(candidate.Path, 0x10000 | 0x80, 0x1 | 0x2, IntPtr.Zero, 3,
+            0x02000000 | 0x00200000, IntPtr.Zero);
+        if (directory.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+        var final = new StringBuilder(32768);
+        uint length = GetFinalPathNameByHandle(directory, final, (uint)final.Capacity, 0);
+        if (length == 0 || length >= final.Capacity) throw new IOException("Cannot resolve directory handle.");
+        var actual = final.ToString();
+        if (actual.StartsWith(@"\\?\", StringComparison.Ordinal)) actual = actual[4..];
+        if (!actual.Equals(Path.GetFullPath(candidate.Path), StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Directory target changed or is redirected.");
+        if (!GetFileInformationByHandle(directory, out var info)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        long created = ((long)info.Created.dwHighDateTime << 32) | (uint)info.Created.dwLowDateTime;
+        if ((info.Attributes & (uint)FileAttributes.Directory) == 0 ||
+            (info.Attributes & (uint)(FileAttributes.ReparsePoint | FileAttributes.System)) != 0 ||
+            DateTime.FromFileTimeUtc(created) != candidate.CreatedUtc || candidate.Volume != info.Volume ||
+            candidate.Identity != (((ulong)info.IndexHigh << 32) | info.IndexLow))
+            throw new IOException("Directory changed since the scan.");
+        // The kernel refuses disposition for nonempty directories; never recurse or delete children.
+        byte delete = 1;
+        if (!SetFileInformationByHandle(directory, 4, ref delete, 1)) throw new Win32Exception(Marshal.GetLastWin32Error());
+    }
     [StructLayout(LayoutKind.Sequential)]
     internal struct MemoryStatus
     {

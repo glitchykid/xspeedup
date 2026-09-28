@@ -1,119 +1,102 @@
 # X SpeedUp
 
-A Windows desktop maintenance app with an Electron + Svelte interface and a C#/.NET agent. Inspect disk and memory usage, remove old temporary files, review stale startup registry values, choose optional service profiles, and close unused applications. The interface is in Russian; project documentation is in English.
+A local Windows maintenance application built with Electron, Svelte, TypeScript and a C#/.NET agent. Inspect your computer, clean old temporary files, review application registry leftovers, find empty folders, manage optional services, and release an application's working set.
 
-**Status:** version 0.2.1 for Windows x64, with a brutalist interface and light/dark themes. Operations are explicit, local, and reviewed before execution. There is no automatic optimization, telemetry, or promise of a particular performance gain.
+**Version 0.3.0 · Windows 10/11 x64.** [Download the installer from GitHub Releases](https://github.com/glitchykid/xspeedup/releases). The installer includes the .NET runtime; end users do not need Node.js or .NET installed separately. Installers are currently unsigned.
 
-## Interface and themes
+## Interface and languages
 
-The interface uses a brutalist visual language: bold typography, square panels, strong borders, solid lime/violet accents, and hard offset shadows. These styles cover all six screens, including lists, notices, disabled controls, selection states, and keyboard focus.
+The Glass Morphism interface uses translucent surfaces, soft depth, original generated artwork, and generated application/navigation icons. Light and dark themes follow the system on first launch and remember an explicit selection. Active navigation colors stay selected when hovered.
 
-Use **Светлая** (Light) or **Тёмная** (Dark) in the top bar to switch themes without losing the current page, scan, or selection. The first launch follows the Windows color preference. An explicit choice is saved locally and takes priority on subsequent launches. Theme changes do not execute any maintenance action. If local preference storage is unavailable, switching still works for the current session.
+The language selector supports **Russian, English, Ukrainian, Korean, Japanese and Simplified Chinese**. It initially follows a supported system language and otherwise uses English. Theme/language changes preserve scans and selections; both preferences are stored locally. Core screens, action explanations and native confirmation dialogs are translated. Windows diagnostic messages, registry value names, executable titles and historical diagnostic records retain their original text. These are available under **Technical details**, rather than being rewritten during recovery.
 
-The layout supports the app's minimum 1020 × 720 window size and respects reduced-motion preferences. Native Windows confirmation dialogs retain the operating system's appearance.
+The minimum window size is 1020 × 720. The interface respects reduced-motion and reduced-transparency preferences. Generated asset provenance and prompts are in [Design assets](docs/DESIGN_ASSETS.md).
 
-## Features
+## Maintenance tools
 
-| Tool             | What it does                                                                                                                                                   | Recovery                                                   |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| System overview  | Actual system drive space, physical memory usage, logical processor count and uptime                                                                           | Read-only                                                  |
-| File cleanup     | Current user's Temp and DirectX shader cache older than 7 days; CrashDumps older than 14 days                                                                  | Permanent deletion; no file backup                         |
-| Registry cleanup | Stale string values in the current user's `Software\Microsoft\Windows\CurrentVersion\Run` key, pointing to missing absolute `.exe` paths on local fixed drives | Original value and registry type backed up before deletion |
-| Service profiles | Explicit selection of optional services with per-service impact descriptions                                                                                   | Original startup mode backed up before modification        |
-| Applications     | Memory usage and normal close requests for eligible visible applications in the current session                                                                | Applications handle their own save prompts                 |
-| History          | Recent maintenance operations, backups and partial restore conflicts                                                                                           | Registry/service restores available in the app             |
+| Tool          | Scope                                                                                                       | Recovery                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Overview      | Actual system drive space, available physical memory, logical CPUs and uptime                               | Read-only                                          |
+| File cleanup  | Current user's Temp and DirectX shader cache older than 7 days; CrashDumps older than 14 days               | Permanent deletion                                 |
+| Empty folders | Available fixed and removable local drives, with protected directory exclusions                             | Permanent deletion of empty leaves only            |
+| Registry      | Stale/empty Run and RunOnce values, stale App Paths, qualifying Uninstall leftovers, empty application keys | Typed value/key snapshots before changes           |
+| Services      | Six optional services in explicit profiles, with visible impact descriptions                                | Original startup modes saved                       |
+| Apps & memory | Eligible visible apps in the current session; normal close requests or working-set trimming                 | No process termination; memory may be loaded again |
+| History       | Local operation journal and registry/service restoration                                                    | Conflicting current settings are preserved         |
 
-Service profiles are **No maps or fax**, **Less telemetry**, and **No Xbox**. A profile only selects entries; it does not execute anything. Disabling changes startup behavior after a restart and does not stop currently running services. Microsoft Defender, Windows Update, core networking, storage, and other critical services are not in the writable catalog.
+Nothing is optimized automatically. Every mutation requires selection and a native confirmation. There is no telemetry, arbitrary shell command API, or promise of a particular performance gain.
 
-## Run from source
+### Expanded registry cleanup
 
-Requirements: Windows 10/11 x64, **Node.js 24 LTS** (24.21.0), npm, and **.NET 10 LTS SDK** (10.0.401 or a compatible patch). The SDK may also be installed privately at `.tools/dotnet`.
+The analyzer inspects HKCU's native view and HKLM's 32-bit/64-bit views under `Software\Microsoft\Windows\CurrentVersion`:
+
+- `Run` and `RunOnce`: empty string commands and unambiguous absolute executable paths whose files are missing.
+- `App Paths`: missing absolute executable targets and genuinely empty leaf keys.
+- `Uninstall`: leaf entries for non-MSI applications where the install directory **and** uninstaller are missing. Additional executable/icon references, when present, must also be unambiguously missing.
+- Empty leaf keys up to three levels below `HKCU\Software`, excluding Microsoft, Classes, Policies and other protected roots.
+
+Missing paths must be on available fixed local drives. Access failures, network/removable installation paths, registry links, MSI records, system components and keys containing subkeys are excluded. A missing installation directory alone is insufficient evidence. This does not attempt to guess arbitrary vendor leftovers or remove every key associated with a product name.
+
+HKLM changes require administrator rights; inspection uses read-only handles. Snapshots preserve supported value types and unexpanded strings. Writes use Windows registry transactions and fail rather than falling back to unguarded writes if transactions are unavailable. Restores preserve conflicts and can be retried. Old startup-only backups remain supported. See [scope and recovery](docs/SAFETY.md) for limits.
+
+### Empty folders on all local drives
+
+Start a scan in **Empty folders**, then use **Continue scan** for remaining directories. Each scan slice is bounded to keep the interface responsive; results accumulate up to 5,000 entries. Select up to 256 paths per operation. Scanning never deletes anything.
+
+System directories, Program Files, ProgramData, the current user's AppData, reparse points/junctions, development metadata such as `.git` and `node_modules`, and protected profile roots are excluded. Network drives are not traversed. A folder can be useful even when empty: inspect the results before confirming deletion.
+
+The agent rechecks the path, volume, directory identity, creation time and empty state. Windows performs deletion through the verified handle and refuses nonempty folders. No recursive directory deletion is used. Newly empty parents are found by a later scan. Removed/disconnected drives, changed folders and access failures are skipped.
+
+### Memory release
+
+Use **Release memory** beside an eligible application in **Apps & memory**. The overview's memory shortcut opens that list. The app requests Windows `EmptyWorkingSet` for the selected process, identified by its PID and start time, without closing it. It reports the measured working-set reduction, **not** a guaranteed increase in system-wide free memory. Pages can be loaded again and subsequent access can be slower. This does not fix memory leaks or clear the system standby cache.
+
+## Build and run
+
+Development requirements: Windows x64, **Node.js 24 LTS (24.21.0)** and **.NET 10 LTS SDK (10.0.401 or compatible patch)**. A private SDK at `.tools/dotnet` is supported. Missing tools can be installed with winget on Windows.
 
 ```powershell
 npm ci
 npm run dev
 ```
 
-This builds the Windows agent, starts Vite on `127.0.0.1:5173`, and opens Electron. Svelte changes update live. Restart `npm run dev` after changing Electron or C# code.
-
-To run the production build:
-
 ```powershell
-npm run build
-npm start
+npm run build       # Renderer, Electron and self-contained agent
+npm start           # Production app
+npm run package -- --publish never
 ```
 
-`npm run dev:web` opens the interface in a browser for layout work. It explicitly labels itself as a preview; Windows operations and fabricated system readings are not provided there.
+Installer output: `release/X-SpeedUp-Setup-0.3.0.exe`. The unpacked application is in `release/win-unpacked/`. The same filename is used in GitHub downloads and `SHA256SUMS.txt`. Packaging automatically converts the generated PNG application icon to Windows icon resources.
 
-## Windows installer
+`npm run dev:web` provides a labeled browser-only preview, with no simulated Windows data or maintenance operations.
 
-```powershell
-npm run package
-```
-
-Output: `release/X-SpeedUp-Setup-0.2.1.exe`, with an unpacked application in `release/win-unpacked/`. The installer includes the .NET runtime; end users do not need Node.js or .NET installed. The first packaging run downloads Electron and NSIS build tools. The installer uses the same filename locally, on GitHub, and in `SHA256SUMS.txt`.
-
-The build is unsigned unless a code-signing certificate is configured in your environment. Windows may display an unknown-publisher prompt. No signing credentials are stored in this repository. `npm run package` creates local artifacts. Installers are also published through the version-tag release workflow described below.
-
-Download published installers from [GitHub Releases](https://github.com/glitchykid/xspeedup/releases).
-
-Normal cleanup, inspection, and current-user registry operations use standard permissions. For service changes/restores, launch the installed application with **Run as administrator** using the same Windows account. The app does not elevate itself automatically. Elevated execution under a different account targets that account's registry and backup folder.
-
-## Maintenance workflow
-
-1. Start with **Analyze system** or a tool-specific scan.
-2. Review categories/entries and select what you want to change. Cleanup and registry items are unselected by default.
-3. Read the native confirmation dialog. File deletion is permanent; registry/service operations have backups.
-4. Review changed/skipped counts and error details. Locked or changed files are skipped.
-5. Open **History** to restore registry values or service startup modes. Restart Windows after changing or restoring service startup modes.
-
-Backups and history are stored in `%LOCALAPPDATA%\XSpeedUp\history` as JSON. They include original startup commands and service modes, so treat them as private local data. Keep this folder if you want to restore settings after reinstalling. The UI displays the latest 100 records; older files remain on disk.
+For service or HKLM changes/restores, launch the app with **Run as administrator** under the same Windows account. The app does not automatically elevate. Registry and service backups are stored in `%LOCALAPPDATA%\XSpeedUp\history`; keep this folder to retain recovery. Running under a different account uses that account's registry and history.
 
 ## Verification
 
 ```powershell
-npm run check       # Svelte diagnostics and TypeScript 7 checks
-npm test            # Native filesystem fixtures, in-memory recovery tests, IPC tests
-npm run build       # Production renderer, Electron main/preload, self-contained agent
-npm run test:desktop # Real Electron / Windows read-only integration smoke test
-npm run test:desktop -- --packaged # Same checks against release/win-unpacked after packaging
+npm run check
+npm test
+npm run test:desktop
+npm run test:desktop -- --packaged
 ```
 
-The native test harness creates disposable fixtures under `.cache/tests` and uses in-memory registry/service adapters. It never cleans a real temporary folder, edits the live registry, changes a live service, or closes a user's app. Fixtures are retained for inspection. The desktop smoke test reads actual Windows state, checks all six screens in both themes, verifies theme persistence/system fallback/keyboard controls, and checks the minimum window size. It restores the previous saved theme on completion. Screenshots in `artifacts/screenshots` are excluded from Git because they contain device information.
+Native tests use disposable filesystem fixtures and in-memory registry/service/process adapters for mutations. A read-only machine-registry check catches access regressions. Desktop tests inspect Windows without deleting files, changing live registry/services, trimming real applications or closing them. They cover seven screens, both themes, all six locales, active navigation hover, selection preservation, preference persistence, the minimum window size, and IPC isolation. Prior preferences are restored when tests finish.
 
-GitHub Actions runs Windows build and native/type checks. The interactive desktop smoke test is intended for a logged-in Windows desktop session. Real administrator service writes still need acceptance testing in a disposable Windows VM; they are deliberately not performed on the development machine.
+Real registry transaction writes/restoration, administrative service changes and OS working-set trimming still require acceptance testing in a disposable Windows VM. Installation/uninstallation are not performed on the development machine. See [verification](docs/VERIFICATION.md).
 
-## Publishing a release
+## Release workflow
 
-1. Update `package.json`, the lockfile, displayed version, changelog, and `docs/releases/<version>.md`.
-2. Verify and commit the changes, then push the branch.
-3. Create an annotated `v<version>` tag matching `package.json` and push that tag.
-4. The **Publish Windows release** workflow runs native tests, checks types, builds the self-contained agent and NSIS installer, then publishes the installer and `SHA256SUMS.txt` to GitHub Releases.
+1. Update the package/lockfile/display version, changelog and `docs/releases/<version>.md`.
+2. Verify, commit and push.
+3. Push an annotated `v<version>` tag matching the package version.
+4. GitHub Actions runs tests and builds the Windows installer, then publishes it with `SHA256SUMS.txt` using the repository's short-lived token.
 
-The workflow uses the repository's short-lived `GITHUB_TOKEN` with `contents: write`; a personal token is not needed. Failed builds do not publish a release. Packaging tools are downloaded automatically when needed; on Windows, missing development tools can also be installed with winget.
+Dependencies remain pinned to versions verified on 2026-09-28: .NET SDK 10.0.401 LTS / C# 14, Node 24.21.0 LTS, Electron 44.4.5, Svelte 5.57.1, TypeScript 7.0.2, Vite 8.3.1, Svelte plugin 7.3.1 and electron-builder 26.15.3. The native TypeScript 7 compiler runs alongside Microsoft's TypeScript 6.0.2 compatibility API because `svelte-check` requires that API; npm peer checks are not bypassed.
 
-## Technology versions
+## Documentation and references
 
-Versions were checked against stable releases on **2026-09-28**, with LTS preferred where available.
-
-| Component            | Version                                   |
-| -------------------- | ----------------------------------------- |
-| .NET SDK / C#        | 10.0.401 LTS / C# 14                      |
-| Node.js              | 24.21.0 LTS                               |
-| Electron             | 44.4.5                                    |
-| Svelte               | 5.57.1 (runes, event attributes, `mount`) |
-| TypeScript compiler  | 7.0.2                                     |
-| Vite / Svelte plugin | 8.3.1 / 7.3.1                             |
-| electron-builder     | 26.15.3                                   |
-
-**TypeScript compatibility:** TypeScript 7 has no JavaScript compiler API. `svelte-check` 4.7.6 requires the TypeScript 5/6 API. The project follows Microsoft's documented side-by-side arrangement: `@typescript/native` aliases TypeScript 7.0.2 for `tsc`, while `typescript` aliases the official `@typescript/typescript6` 6.0.2 compatibility package for Svelte tooling. This is intentional; npm peer checks are not bypassed. See the [TypeScript 7 release notes](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/).
-
-See [architecture](docs/ARCHITECTURE.md), [maintenance scope and recovery](docs/SAFETY.md), and the [changelog](CHANGELOG.md).
-
-## Official references
-
-- [Electron context isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation) and [security recommendations](https://www.electronjs.org/docs/latest/tutorial/security)
-- [Svelte 5 documentation](https://svelte.dev/docs/svelte/overview)
-- [.NET 10 downloads](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
-- [Windows service configuration](https://learn.microsoft.com/en-us/windows/win32/services/service-configuration)
-- [Microsoft's registry cleaner support policy](https://support.microsoft.com/en-us/topic/microsoft-support-policy-for-the-use-of-registry-cleaning-utilities-0485f4df-9520-3691-2461-7b0fd54e8b3a)
+- [Architecture](docs/ARCHITECTURE.md), [maintenance scope](docs/SAFETY.md), [changelog](CHANGELOG.md)
+- [Electron security](https://www.electronjs.org/docs/latest/tutorial/security), [Svelte 5](https://svelte.dev/docs/svelte/overview), [.NET 10](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+- [EmptyWorkingSet](https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-emptyworkingset), [Uninstall metadata](https://learn.microsoft.com/en-us/windows/win32/msi/uninstall-registry-key), [registry transactions](https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regopenkeytransactedw)
+- [TypeScript 7 and the compatibility API](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)

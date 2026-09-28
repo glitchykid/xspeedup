@@ -6,6 +6,10 @@ const methods = new Set([
   'cleanup.apply',
   'registry.scan',
   'registry.apply',
+  'folders.scan',
+  'folders.continue',
+  'folders.apply',
+  'memory.release',
   'services.list',
   'services.disable',
   'processes.list',
@@ -14,6 +18,8 @@ const methods = new Set([
   'history.restore',
 ]);
 const mutations = new Set<Method>([
+  'folders.apply',
+  'memory.release',
   'cleanup.apply',
   'registry.apply',
   'services.disable',
@@ -32,6 +38,9 @@ export function validateRequest(
   const keys: Record<string, string[]> = {
     'cleanup.apply': ['scanId', 'categoryIds'],
     'registry.apply': ['scanId', 'entryIds'],
+    'folders.continue': ['scanId'],
+    'folders.apply': ['scanId', 'entryIds'],
+    'memory.release': ['processId', 'startTime'],
     'services.disable': ['serviceIds'],
     'processes.close': ['processId', 'startTime'],
     'history.restore': ['id'],

@@ -34,6 +34,6 @@ public sealed class Journal(string directory)
             catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or ArgumentException) { }
         }
         return entries.OrderByDescending(e => e.CreatedAt).Take(100).Select(e => (object)new
-        { e.Id, e.CreatedAt, e.Kind, e.Summary, e.Restored, e.Details, CanRestore = !e.Restored && e.Backups.Count > 0 }).ToArray();
+        { e.Id, e.CreatedAt, e.Kind, e.Summary, e.Restored, e.Details, CanRestore = !e.Restored && (e.Backups.Count > 0 || e.RegistryBackups.Count > 0) }).ToArray();
     }
 }

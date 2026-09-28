@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — 2026-09-28
+
+- Replaced the brutalist interface with light/dark Glass Morphism and persistent preferences.
+- Added original generated hero artwork, Windows application icon and navigation icon atlas.
+- Added Russian, English, Ukrainian, Korean, Japanese and Simplified Chinese interface/confirmation translations.
+- Fixed active navigation colors changing on hover.
+- Expanded registry review to RunOnce, App Paths, qualifying removed-application Uninstall entries and empty application keys, with typed snapshots, transactional changes and conflict-aware restoration.
+- Added incremental empty-folder scanning across local fixed/removable drives, protected directory exclusions and handle-verified nonrecursive deletion.
+- Added selected-application working-set trimming with PID/start-time validation and measured results.
+- Added regression coverage for changed folders, registry backup/restore conflicts, memory eligibility, localization and desktop preferences.
+
 ## 0.2.1 — 2026-09-28
 
 - Use a stable installer filename without spaces so GitHub downloads and checksum entries match.
