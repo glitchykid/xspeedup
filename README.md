@@ -2,7 +2,7 @@
 
 A local Windows maintenance application built with Electron, Svelte, TypeScript and a C#/.NET agent. Inspect your computer, clean old temporary files, review application registry leftovers, find empty folders, manage optional services, and release an application's working set.
 
-**Version 0.3.0 · Windows 10/11 x64.** [Download the installer from GitHub Releases](https://github.com/glitchykid/xspeedup/releases). The installer includes the .NET runtime; end users do not need Node.js or .NET installed separately. Installers are currently unsigned.
+**Version 0.3.1 · Windows 10/11 x64.** [Download the installer from GitHub Releases](https://github.com/glitchykid/xspeedup/releases). The installer includes the .NET runtime; end users do not need Node.js or .NET installed separately. Installers are currently unsigned.
 
 ## Interface and languages
 
@@ -66,7 +66,7 @@ npm start           # Production app
 npm run package -- --publish never
 ```
 
-Installer output: `release/X-SpeedUp-Setup-0.3.0.exe`. The unpacked application is in `release/win-unpacked/`. The same filename is used in GitHub downloads and `SHA256SUMS.txt`. Packaging automatically converts the generated PNG application icon to Windows icon resources.
+Installer output: `release/X-SpeedUp-Setup-0.3.1.exe`. The unpacked application is in `release/win-unpacked/`. The same filename is used in GitHub downloads and `SHA256SUMS.txt`. Packaging automatically converts the generated PNG application icon to Windows icon resources.
 
 `npm run dev:web` provides a labeled browser-only preview, with no simulated Windows data or maintenance operations.
 

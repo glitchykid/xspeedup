@@ -258,7 +258,7 @@
         <Icon name="shield" size={20} /><strong>{t('local')}</strong>
         <p>{t('private')}</p>
       </div>
-      <div class="version"><span class="status-dot"></span>X SpeedUp <span>v0.3.0</span></div>
+      <div class="version"><span class="status-dot"></span>X SpeedUp <span>v0.3.1</span></div>
     </div>
   </aside>
   <div class="workspace">

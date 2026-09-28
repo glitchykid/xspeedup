@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-09-28
+
+- Retain the selected process handle from eligibility/identity validation through working-set trimming, preventing a PID-reuse race if an application exits during the operation.
+
 ## 0.3.0 — 2026-09-28
 
 - Replaced the brutalist interface with light/dark Glass Morphism and persistent preferences.

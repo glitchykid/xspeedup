@@ -1,5 +1,15 @@
 # Verification
 
+## 0.3.1 — 2026-09-28
+
+- Retained the process handle before memory eligibility and identity checks, keeping working-set trimming bound to the same kernel process object if its PID is reused.
+- Native regression harness: 60 assertions passed. TypeScript suite: 5 tests passed.
+- Production Svelte diagnostics: 0 errors and 0 warnings; TypeScript and self-contained .NET builds passed.
+- The Windows x64 installer `X-SpeedUp-Setup-0.3.1.exe` was built and reports product version 0.3.1.
+- Packaged Electron integration passed for seven screens, both themes, all six locales, active-tab hover, preference persistence, generated assets, minimum window size, read-only Windows scans and IPC isolation.
+
+No maintenance actions were executed against the host during desktop verification. The native OS mutation and installer installation/uninstallation acceptance limits described below still apply.
+
 ## 0.3.0 — 2026-09-28
 
 - Native regression harness: 60 assertions passed. New coverage includes read-only HKLM access, protected scan roots, changed/nonempty/replaced folders, single-use manifests, typed registry snapshots, backup-before-delete ordering, conflicting restores, non-MSI removal evidence, and memory-process eligibility/identity checks.

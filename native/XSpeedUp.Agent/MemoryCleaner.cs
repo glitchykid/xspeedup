@@ -16,7 +16,15 @@ public interface IMemoryTarget : IDisposable
 internal sealed class WindowsMemoryTarget(int id) : IMemoryTarget
 {
     private readonly Process process = Process.GetProcessById(id);
-    public bool Eligible => SystemInspection.CanClose(process);
+    public bool Eligible
+    {
+        get
+        {
+            // Pin the kernel process object before checking its identity; keep the same handle until disposal.
+            _ = process.SafeHandle;
+            return SystemInspection.CanClose(process);
+        }
+    }
     public string StartTime => process.StartTime.ToUniversalTime().ToString("O");
     public string Name => process.ProcessName;
     public long WorkingSet { get { process.Refresh(); return process.WorkingSet64; } }
