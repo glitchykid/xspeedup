@@ -24,6 +24,7 @@ string Fixture(string name, bool old = true)
 }
 try
 {
+    JournalTests.Run(workspace, Check, Reject);
     var old = Fixture("old.tmp");
     var changed = Fixture("changed.tmp");
     var locked = Fixture("locked.tmp");

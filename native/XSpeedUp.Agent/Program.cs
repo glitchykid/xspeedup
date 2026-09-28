@@ -49,7 +49,7 @@ public static class Program
                 {
                     "system" => SystemInspection.Read(),
                     "tuning.status" => tuning.Status(),
-                    "tuning.start" => tuning.Start(Text("deviceId")),
+                    "tuning.start" => tuning.Start(Text("deviceId"), args.GetProperty("stepSeconds").GetInt32()),
                     "tuning.heartbeat" => tuning.Heartbeat(Text("id")),
                     "tuning.advance" => tuning.Advance(Text("id")),
                     "tuning.finish" => tuning.Finish(Text("id"), args.GetProperty("completed").GetBoolean()),

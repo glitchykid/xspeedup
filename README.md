@@ -2,15 +2,15 @@
 
 A local Windows maintenance application built with Electron, Svelte, TypeScript and a C#/.NET agent. Inspect your computer, clean old temporary files, review application registry leftovers, find empty folders, manage optional services, and release an application's working set.
 
-**Version 0.4.0 · Windows 10/11 x64.** [Download the installer from GitHub Releases](https://github.com/glitchykid/xspeedup/releases). The installer includes the .NET runtime; end users do not need Node.js or .NET installed separately. Installers are currently unsigned.
+**Version 0.5.0 · Windows 10/11 x64.** [Download the installer from GitHub Releases](https://github.com/glitchykid/xspeedup/releases). The installer includes the .NET runtime; end users do not need Node.js or .NET installed separately. Installers are currently unsigned.
 
 ## Interface and languages
 
-The compact, dark minimalist interface uses Gunmetal (#2A3439) surfaces, quiet sage accents and original generated icons. Flat backgrounds, subtle borders and restrained contrast keep the tools readable without neon or glass effects. Previous light preferences migrate to dark. Active navigation colors stay selected when hovered. Lists have a master checkbox with mixed-state feedback; main action docks stay visible while scrolling.
+The compact, dark minimalist interface uses Gunmetal (#2A3439) surfaces, quiet sage accents and original generated icons. Flat backgrounds, subtle borders and restrained contrast keep the tools readable without neon or glass effects. Previous light preferences migrate to dark. Active navigation colors stay selected when hovered. Lists have a master checkbox with mixed-state feedback. Unchecking individual rows preserves selected IDs on other pages and outside a filter. Main screens fit without scrolling: row counts adapt to the available window height, long lists and diagnostic details are paginated, and actions remain visible. Game Mode and hardware information use nested tabs.
 
 The language selector supports **Russian, English, Ukrainian, Korean, Japanese and Simplified Chinese**. It initially follows a supported system language and otherwise uses English. Language changes preserve scans and selections and are stored locally. Core screens, action explanations and native confirmation dialogs are translated. Windows diagnostic messages, registry value names, executable titles and historical diagnostic records retain their original text. These are available under **Technical details**, rather than being rewritten during recovery.
 
-The minimum window size is 1020 × 720. The interface respects reduced-motion and reduced-transparency preferences. Generated asset provenance and prompts are in [Design assets](docs/DESIGN_ASSETS.md).
+The minimum window size is 1020 × 720. The default window is 1160 × 760. The application icon is an opaque generated X/lightning PNG on Gunmetal; internal icons are transparent antialiased PNGs. No SVG icons are rendered. Reduced-motion preferences are respected. Asset provenance and prompts are in [0.5 design assets](docs/DESIGN_ASSETS_0.5.0.md).
 
 ## Maintenance tools
 
@@ -45,7 +45,7 @@ HKLM changes require administrator rights; inspection uses read-only handles. Sn
 
 Choose a folder with the native picker, or select all available local drives. Short scan slices continue automatically until traversal finishes or you stop it. There is no 5,000-result or depth-128 cutoff. Inaccessible/protected paths are counted as skipped; completion means every permitted path was considered. Deletion stays disabled for incomplete scans.
 
-Results are paginated in groups of 100. The master checkbox covers every matching result across pages, preserving choices outside a filter. Selecting the entire scan uses a compact bulk request; explicit partial selections accept up to 100,000 IDs. The selected root is never a deletion candidate. Scanning never deletes anything.
+Results are paginated according to the available height. The master checkbox covers every matching result across pages, preserving choices outside a filter. Selecting the entire scan uses a compact bulk request; explicit partial selections accept up to 100,000 IDs. The selected root is never a deletion candidate. Scanning never deletes anything.
 
 System directories, Program Files, ProgramData, the current user's AppData, reparse points/junctions, development metadata such as `.git` and `node_modules`, and protected profile roots are excluded. Network drives are not traversed. A folder can be useful even when empty: inspect the results before confirming deletion.
 
@@ -59,9 +59,9 @@ Use **Release memory** beside an eligible application in **Apps & memory**. The 
 
 The balanced Game Mode enables Windows Game Mode and can temporarily stop **DiagTrack, MapsBroker and Fax** if selected and available. It sends normal close requests only to selected visible applications. Finishing the session restores the previous Windows setting and starts services stopped by that session. Incomplete restoration can be retried from History. Power plans, security services, timer settings and service startup modes are unchanged; closed applications are not relaunched.
 
-**Tests & tuning** discovers driver capabilities on the current machine. It includes an original WebGL 2 scene with 2,359,296 submitted triangles per heavy frame, procedural shading, GPU integer readback checks, frame-time statistics, and optional bounded CPU/RAM worker tests. Standalone tests do not change clocks.
+**Tests & tuning** discovers driver capabilities on the current machine. Tests open in a separate fullscreen window with an original deferred WebGL 2 scene. Defaults include 2,359,728 triangles per geometry pass, 16 moving point lights, a moving shadowed key light, PCF shadows, SSAO, GGX lighting, HDR/bloom and a final FXAA antialiasing pass. GPU readback checks, frame-time statistics, CPU matrix checks and allocated-RAM pattern tests accompany the scene. Esc or native close stops the work before closing the test window. This is a custom workload, not Cyberpunk 2077 or a claim of equivalent rendering quality. Standalone tests do not change clocks.
 
-Experimental automatic tuning currently supports **one NVIDIA GPU with usable NVML clock-offset controls and temperature readings**, with administrator rights. It tests small core/VRAM increments within driver bounds, records passed candidates, and restores original offsets at the end. An independent recovery process monitors temperature and a heartbeat. CPU multipliers, system RAM timings and non-NVIDIA tuning adapters are **not implemented**; the UI says so. Capability detection does not make unsupported hardware writable. See [hardware testing and tuning](docs/TUNING.md) for exact limits and recovery behavior.
+Experimental automatic tuning currently supports **one NVIDIA GPU with usable NVML clock-offset controls and temperature readings**, with administrator rights. It tests small core/VRAM increments within driver bounds, records passed candidates, and restores original offsets at the end. An independent recovery process monitors temperature and a heartbeat. The dashboard displays live GPU/VRAM clocks, P0 offsets, driver-reported maxima, temperature and available power data before starting. A zero software offset does not establish whether a card is factory overclocked. The user selects **10–120 seconds per step**; final validation still requires **120 seconds**. CPU multipliers, system RAM timings, SSD clock controls and non-NVIDIA tuning adapters are **not implemented**; the UI says so. Capability detection does not make unsupported hardware writable. See [hardware testing and tuning](docs/TUNING.md) for exact limits and recovery behavior.
 
 ## Build and run
 
@@ -78,7 +78,7 @@ npm start           # Production app
 npm run package -- --publish never
 ```
 
-Installer output: `release/X-SpeedUp-Setup-0.4.0.exe`. The unpacked application is in `release/win-unpacked/`. The same filename is used in GitHub downloads and `SHA256SUMS.txt`. Packaging automatically converts the generated PNG application icon to Windows icon resources.
+Installer output: `release/X-SpeedUp-Setup-0.5.0.exe`. The unpacked application is in `release/win-unpacked/`. The same filename is used in GitHub downloads and `SHA256SUMS.txt`. Packaging automatically converts the generated PNG application icon to Windows icon resources.
 
 `npm run dev:web` provides a labeled browser-only preview, with no simulated Windows data or maintenance operations.
 
@@ -90,10 +90,11 @@ For service or HKLM changes/restores, launch the app with **Run as administrator
 npm run check
 npm test
 npm run test:desktop
+npm run test:bench
 npm run test:desktop -- --packaged
 ```
 
-Native tests use disposable filesystem fixtures and in-memory registry/service/process adapters for mutations. A read-only machine-registry check catches access regressions. Desktop tests inspect Windows without deleting files, changing live registry/services, trimming real applications or closing them. They cover nine screens, dark-only migration, all six locales, active navigation hover, bulk/filter selection, 5,103 empty folders, fixed action docks, preference persistence, the minimum window size, IPC isolation and a three-second low-load GPU render/readback test. Prior preferences are restored when tests finish.
+Native tests use disposable filesystem fixtures and in-memory registry/service/process adapters for mutations. A read-only machine-registry check catches access regressions. Desktop tests inspect Windows without deleting files, changing live registry/services, trimming real applications or closing them. They cover nine screens, dark-only migration, all six locales, active navigation hover, bulk/filter/cross-page selection, 5,103 empty folders, fixed action docks, preference persistence, the minimum window size, IPC isolation and fullscreen GPU render/readback tests. A separate workload check covers CPU/RAM, antialiasing and native close during an active run. Prior preferences are restored when tests finish.
 
 Real registry transaction writes/restoration, administrative service changes and OS working-set trimming still require acceptance testing in a disposable Windows VM. Real GPU clock writes and full-load stability require dedicated supported hardware; development verification only reads NVML capabilities. Installation/uninstallation are not performed on the development machine. See [verification](docs/VERIFICATION.md).
 

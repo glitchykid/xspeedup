@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 — 2026-09-28
+
+- Fixed select-all followed by individual deselection: hidden pages and filtered-out selections remain selected.
+- Compact Gunmetal screens with adaptive pagination, nested Game Mode/hardware tabs and paginated diagnostics; primary screens and action controls fit the minimum window without scrolling.
+- Replaced the application icon with a generated opaque X/lightning PNG; all internal icons are transparent antialiased PNGs.
+- Dedicated fullscreen test window with graceful Esc/native-close cancellation and restricted IPC access.
+- Original deferred GPU workload: complex procedural geometry, 16 moving lights, shadowed key light, SSAO, PCF shadows, GGX lighting, HDR/bloom and FXAA enabled by default.
+- Independent CPU matrix checks and RAM hash/inversion/walking-bit checks.
+- Displays live GPU/VRAM clocks, current offsets, driver maxima, temperature/power readings and motherboard/RAM/storage inventory before testing.
+- User-selectable 10–120 second tuning steps, enforced by the native agent; final validation still requires 120 seconds and every candidate must be completed.
+
+Clock writes remain limited to the supported single-NVIDIA NVML adapter and require administrator rights. CPU/RAM/SSD clock writes are not implemented; the UI reports the limitations. Zero software offset does not rule out factory overclocking. Original offsets are restored after testing. No voltage, power-limit, firmware or persistent startup tuning is added. This release does not claim Cyberpunk 2077-equivalent graphics or guaranteed hardware stability.
+
 ## 0.4.0 — 2026-09-28
 
 - Added master checkboxes, mixed selection states and fixed action docks.

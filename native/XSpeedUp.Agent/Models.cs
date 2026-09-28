@@ -32,6 +32,7 @@ public sealed class GameBackup
 }
 public sealed class TuningBackup
 {
+    public int StepSeconds { get; set; } = 45;
     public string Device { get; set; } = "";
     public int OriginalCore { get; set; }
     public int? OriginalMemory { get; set; }

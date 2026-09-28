@@ -4,12 +4,15 @@ import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Agent } from './agent';
 import { isMutation, validateRequest } from './validation';
-import type { CleanupScan, RegistryScan, FolderScan } from '../shared/contracts';
+import type { CleanupScan, RegistryScan, FolderScan, BenchOptions } from '../shared/contracts';
 import { createTranslator, validLocale } from '../shared/i18n';
 
 let window: BrowserWindow | null = null;
 let agent: Agent;
 let busy = false;
+let benchmark: BrowserWindow | null = null;
+let benchmarkActive = false;
+let benchmarkConfig: { options: BenchOptions; locale: string } | null = null;
 let cleanup: CleanupScan | undefined;
 let registry: RegistryScan | undefined;
 let folders: FolderScan | undefined;
@@ -17,6 +20,63 @@ let selectedFolder: string | undefined;
 const development = !app.isPackaged && process.env.XSPEEDUP_DEV === '1';
 const pagePath = path.join(__dirname, '../dist/index.html');
 const pageUrl = development ? 'http://127.0.0.1:5173/' : pathToFileURL(pagePath).href;
+const benchmarkUrl = pageUrl + '#benchmark';
+function requestBenchmarkStop() {
+  benchmark?.webContents.send('xspeedup:bench-stop');
+}
+async function openBenchmark(options: BenchOptions, locale: string) {
+  if (!window || benchmark) throw new Error('Benchmark window already open.');
+  benchmarkConfig = { options, locale };
+  benchmarkActive = true;
+  const child = new BrowserWindow({
+    parent: window,
+    modal: true,
+    fullscreen: true,
+    frame: false,
+    show: false,
+    backgroundColor: '#14191c',
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webSecurity: true,
+    },
+  });
+  benchmark = child;
+  child.once('ready-to-show', () => {
+    child.show();
+    child.setFullScreen(true);
+  });
+  child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  child.webContents.on('will-navigate', (event) => event.preventDefault());
+  child.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  child.on('close', (event) => {
+    if (benchmarkActive) {
+      event.preventDefault();
+      requestBenchmarkStop();
+    }
+  });
+  child.on('closed', () => {
+    benchmark = null;
+    benchmarkActive = false;
+    benchmarkConfig = null;
+    window?.focus();
+  });
+  // A lost renderer cannot acknowledge completion; the independent native watchdog restores offsets.
+  child.webContents.on('render-process-gone', () => {
+    benchmarkActive = false;
+    child.destroy();
+  });
+  try {
+    await child.loadURL(benchmarkUrl);
+  } catch (error) {
+    benchmarkActive = false;
+    child.destroy();
+    throw error;
+  }
+}
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
 app.on('second-instance', () => {
@@ -26,8 +86,8 @@ app.on('second-instance', () => {
 
 async function createWindow() {
   window = new BrowserWindow({
-    width: 1320,
-    height: 900,
+    width: 1160,
+    height: 760,
     minWidth: 1020,
     minHeight: 720,
     title: 'X SpeedUp',
@@ -48,7 +108,10 @@ async function createWindow() {
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
   window.on('close', (event) => {
-    if (busy) event.preventDefault();
+    if (busy || benchmarkActive) {
+      event.preventDefault();
+      if (benchmarkActive) requestBenchmarkStop();
+    }
   });
   window.on('closed', () => {
     window = null;
@@ -83,18 +146,50 @@ app
       'xspeedup:request',
       async (event, method: unknown, input: unknown, locale: unknown) => {
         try {
+          const fromBench = !!benchmark && event.sender === benchmark.webContents;
+          const source = fromBench ? benchmark : window;
           if (
             !window ||
-            event.sender !== window.webContents ||
-            event.senderFrame !== window.webContents.mainFrame ||
-            event.senderFrame.url !== pageUrl
+            !source ||
+            event.sender !== source.webContents ||
+            event.senderFrame !== source.webContents.mainFrame ||
+            event.senderFrame.url !== (fromBench ? benchmarkUrl : pageUrl)
           )
             throw new Error('Недоверенный источник запроса.');
           const request = validateRequest(method, input);
+          const benchOnly = [
+            'bench.config',
+            'bench.complete',
+            'bench.close',
+            'tuning.start',
+            'tuning.heartbeat',
+            'tuning.advance',
+            'tuning.finish',
+          ];
+          if (
+            (fromBench && ![...benchOnly, 'tuning.status'].includes(request.method)) ||
+            (!fromBench && benchOnly.includes(request.method))
+          )
+            throw new Error('Operation unavailable in this window.');
+          if (request.method === 'bench.config') return { ok: true, data: benchmarkConfig };
+          if (request.method === 'bench.complete') {
+            benchmarkActive = false;
+            return { ok: true, data: null };
+          }
+          if (request.method === 'bench.close') {
+            if (benchmarkActive) requestBenchmarkStop();
+            else setTimeout(() => benchmark?.close(), 50);
+            return { ok: true, data: null };
+          }
+          if (!fromBench && benchmark) throw new Error('Close the benchmark window first.');
           const t = createTranslator(validLocale(locale));
           if (busy) throw new Error('Дождитесь завершения текущей операции.');
           busy = true;
           try {
+            if (request.method === 'bench.open') {
+              await openBenchmark(request.args as BenchOptions, validLocale(locale));
+              return { ok: true, data: null };
+            }
             if (request.method === 'gaming.settings') {
               await shell.openExternal('ms-settings:gaming-gamemode');
               return { ok: true, data: null };
@@ -118,7 +213,14 @@ app
                 const gpu = capability.devices.find((d) => d.id === args.deviceId && d.canTune);
                 if (!gpu) throw new Error('Драйвер не подтвердил возможность подбора частот.');
                 heading = t('autoTune');
-                description = gpu.name + '\n\n' + t('tuneNote');
+                description =
+                  gpu.name +
+                  '\n\n' +
+                  t('stepSeconds') +
+                  ': ' +
+                  args.stepSeconds +
+                  ' s\n\n' +
+                  t('tuneNote');
               } else if (request.method === 'gaming.start') {
                 const profile =
                   request.args as import('../shared/contracts').RequestMap['gaming.start'];
@@ -229,7 +331,7 @@ app
                 heading = t('restore');
                 description = t('restoreNote');
               }
-              const answer = await dialog.showMessageBox(window, {
+              const answer = await dialog.showMessageBox(source, {
                 type: 'warning',
                 title: 'X SpeedUp',
                 message: heading,
@@ -280,8 +382,9 @@ app
   });
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', (event) => {
-  if (busy) {
+  if (busy || benchmarkActive) {
     event.preventDefault();
+    if (benchmarkActive) requestBenchmarkStop();
     return;
   }
   agent?.stop();

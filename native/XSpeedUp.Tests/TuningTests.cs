@@ -8,11 +8,22 @@ internal static class TuningTests
         var gpu = new FakeClocks(); var time = DateTime.UtcNow;
         string? armed = null;
         var tuner = new AutoTuner(journal, gpu, () => time, id => armed = id);
+        reject(() => tuner.Start("GPU-fixture", 9), "Step intervals below ten seconds are rejected before writes");
+        reject(() => tuner.Start("GPU-fixture", 121), "Step intervals above the bounded session budget are rejected");
         var state = tuner.Start("GPU-fixture");
         check(armed == state.Id && gpu.Writes == 0, "Tuning arms independent recovery and saves baseline before clock writes");
         reject(() => tuner.Advance(state.Id), "Untested tuning steps are rejected");
         check(journal.Read(state.Id).Restored && gpu.Core == 0, "A rejected early step leaves baseline restored");
         void Wait(string id, int seconds) { for (int i = 0; i < seconds; i += 5) { time += TimeSpan.FromSeconds(5); tuner.Heartbeat(id); } }
+        state = tuner.Start("GPU-fixture", 10);
+        Wait(state.Id, 10); state = tuner.Advance(state.Id);
+        check(state.Stage == 1 && journal.Read(state.Id).Tuning!.StepSeconds == 10, "Selected ten-second interval controls the first clock step");
+        Wait(state.Id, 120);
+        reject(() => tuner.Finish(state.Id, true), "A long intermediate step cannot masquerade as completed final validation");
+        tuner.Finish(state.Id, false);
+        state = tuner.Start("GPU-fixture", 120); Wait(state.Id, 115);
+        reject(() => tuner.Advance(state.Id), "A longer user interval cannot advance at the old forty-five-second limit");
+        check(journal.Read(state.Id).Restored && gpu.Core == 0, "Early advance under a custom interval restores baseline");
         state = tuner.Start("GPU-fixture");
         gpu.BeforeWrite = () => check(journal.Read(state.Id).Tuning!.ExpectedCore >= gpu.Core, "Clock intent is persisted before a driver write");
         int steps = 0;

@@ -55,7 +55,7 @@ References: [Windows Game Mode setting](https://learn.microsoft.com/en-us/window
 
 ## Hardware tests and tuning
 
-See [TUNING.md](TUNING.md) for detected capabilities, exact increments, independent recovery, load bounds and the unverified live-hardware acceptance scope. Tuning changes clocks only during an explicitly confirmed bounded session and restores original offsets at the end. CPU/system RAM clock controls are unavailable in this release.
+See [TUNING.md](TUNING.md) for detected capabilities, exact increments, independent recovery, load bounds and the unverified live-hardware acceptance scope. Tuning changes clocks only during an explicitly confirmed bounded session and restores original offsets at the end. CPU/system RAM/SSD clock controls are unavailable in this release.
 
 ## Visible applications
 

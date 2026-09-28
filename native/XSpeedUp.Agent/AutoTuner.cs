@@ -25,6 +25,7 @@ public sealed class AutoTuner(Journal journal, IGpuClocks? adapter = null, Func<
         Devices = gpu.Discover(),
         Pending = journal.Entries().Where(e => e.Tuning is not null && !e.Restored).Select(e => e.Id).ToArray(),
         Cpu = ReadCpu(),
+        Hardware = HardwareInventory.Snapshot.Value,
         CpuTuning = false, MemoryTuning = false,
         Reason = "CPU multipliers, system RAM timings and other vendors require a supported manufacturer adapter. This version only probes NVIDIA NVML GPU clock offsets."
     };
@@ -59,18 +60,19 @@ public sealed class AutoTuner(Journal journal, IGpuClocks? adapter = null, Func<
         var b = entry.Tuning!;
         return new(entry.Id, b.Stage, b.ExpectedCore, b.ExpectedMemory, gpu.Temperature(b.Device), b.Stage < Plan(b).Count);
     }
-    public TuningState Start(string device) => Locked(() =>
+    public TuningState Start(string device, int stepSeconds = 45) => Locked(() =>
     {
+        if (stepSeconds is < 10 or > 120) throw new ArgumentException("Step duration must be 10–120 seconds.");
         if (journal.Entries().Any(e => e.Tuning is not null && !e.Restored)) throw new InvalidOperationException("Restore the previous tuning session first.");
         var devices = gpu.Discover().Where(d => d.Id.Length > 0).ToArray();
         var selected = devices.SingleOrDefault(d => d.Id == device && d.CanTune);
         if (devices.Length != 1 || selected?.Core is null) throw new InvalidOperationException("Automatic tuning requires one supported GPU with writable clock offsets.");
         if (gpu.Temperature(device) >= 65) throw new IOException("Cool the GPU below 65 °C before starting.");
-        var b = new TuningBackup { Device = device, OriginalCore = selected.Core.Current, OriginalMemory = selected.Memory?.Current,
+        var b = new TuningBackup { Device = device, StepSeconds = stepSeconds, OriginalCore = selected.Core.Current, OriginalMemory = selected.Memory?.Current,
             ExpectedCore = selected.Core.Current, ExpectedMemory = selected.Memory?.Current, PreviousCore = selected.Core.Current,
             PreviousMemory = selected.Memory?.Current, PassedCore = selected.Core.Current, PassedMemory = selected.Memory?.Current,
             Heartbeat = now(), StageStarted = now() };
-        var entry = new JournalEntry { Kind = "tuning", Summary = "Automatic GPU tuning: baseline saved.", Tuning = b };
+        var entry = new JournalEntry { CreatedAt = now(), Kind = "tuning", Summary = "Automatic GPU tuning: baseline saved.", Tuning = b };
         journal.Save(entry);
         try { (arm ?? ArmWatchdog)(entry.Id); }
         catch { entry.Restored = true; journal.Save(entry); throw; }
@@ -96,7 +98,7 @@ public sealed class AutoTuner(Journal journal, IGpuClocks? adapter = null, Func<
         try
         {
             Healthy(entry);
-            if (now() - b.StageStarted < TimeSpan.FromSeconds(45)) throw new InvalidOperationException("Each baseline/candidate must be tested for at least 45 seconds.");
+            if (b.StepSeconds is < 10 or > 120 || now() - b.StageStarted < TimeSpan.FromSeconds(b.StepSeconds)) throw new InvalidOperationException("The selected test interval has not elapsed.");
             var plan = Plan(b);
             if (b.Stage >= plan.Count) throw new InvalidOperationException("No more bounded clock candidates.");
             b.PassedCore = b.ExpectedCore; b.PassedMemory = b.ExpectedMemory;
@@ -123,7 +125,7 @@ public sealed class AutoTuner(Journal journal, IGpuClocks? adapter = null, Func<
         if (completed)
         {
             try { Healthy(entry); } catch { RestoreCore(entry); throw; }
-            if (b.Stage == 0 || now() - b.StageStarted < TimeSpan.FromSeconds(120)) throw new InvalidOperationException("Final validation needs at least 120 seconds.");
+            if (b.Stage == 0 || b.Stage != Plan(b).Count || now() - b.StageStarted < TimeSpan.FromSeconds(120)) throw new InvalidOperationException("Complete every candidate and validate the final stage for at least 120 seconds.");
             b.PassedCore = b.ExpectedCore; b.PassedMemory = b.ExpectedMemory; b.Completed = true;
             journal.Save(entry);
         }

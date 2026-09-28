@@ -15,12 +15,29 @@ public sealed class Journal(string directory)
             if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) throw new IOException("Папка копий не должна быть ссылкой.");
         var path = FileName(entry.Id);
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+        try
         {
-            System.Text.Json.JsonSerializer.Serialize(stream, entry, Json.Options);
-            stream.Flush(true);
+            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            {
+                System.Text.Json.JsonSerializer.Serialize(stream, entry, Json.Options);
+                stream.Flush(true);
+            }
+            for (int attempt = 0; ; attempt++)
+            {
+                try { File.Move(temp, path, true); break; }
+                catch (Exception ex) when (attempt < 5 && ex is IOException or UnauthorizedAccessException && (ex.HResult & 0xffff) is 5 or 32 or 33)
+                {
+                    // Windows scanners/readers can briefly prevent atomic replacement.
+                    // Never replace via a delete-then-write fallback.
+                    Thread.Sleep(50 << attempt);
+                }
+            }
         }
-        File.Move(temp, path, true);
+        finally
+        {
+            try { File.Delete(temp); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
     }
     public JournalEntry Read(string id) => System.Text.Json.JsonSerializer.Deserialize<JournalEntry>(File.ReadAllText(FileName(id)), Json.Options)
         ?? throw new IOException("Не удалось прочитать резервную копию.");

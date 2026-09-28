@@ -1,5 +1,42 @@
 import test from 'node:test';
+import { allWorkersVerified } from '../src/lib/stress/workers';
 import assert from 'node:assert/strict';
+
+test('every requested worker must contribute a verified pass', () => {
+  assert.equal(
+    allWorkersVerified(
+      new Map([
+        [0, 100],
+        [1, 1],
+      ]),
+      3,
+    ),
+    false,
+  );
+  assert.equal(
+    allWorkersVerified(
+      new Map([
+        [0, 100],
+        [1, 1],
+        [2, 0],
+      ]),
+      3,
+    ),
+    false,
+  );
+  assert.equal(
+    allWorkersVerified(
+      new Map([
+        [0, 1],
+        [1, 1],
+        [2, 1],
+      ]),
+      3,
+    ),
+    true,
+  );
+  assert.equal(allWorkersVerified(new Map(), 0), true);
+});
 import { mesh, hash, frameStats } from '../src/lib/stress/math';
 import { validateRequest, isMutation } from '../electron/validation';
 test('procedural geometry has bounded valid indices and finite vertices', () => {

@@ -92,8 +92,12 @@ export interface ActionResult {
   details: string[];
 }
 export interface RequestMap {
+  'bench.open': BenchOptions;
+  'bench.config': Record<string, never>;
+  'bench.complete': Record<string, never>;
+  'bench.close': Record<string, never>;
   'tuning.status': Record<string, never>;
-  'tuning.start': { deviceId: string };
+  'tuning.start': { deviceId: string; stepSeconds: number };
   'tuning.heartbeat': { id: string };
   'tuning.advance': { id: string };
   'tuning.finish': { id: string; completed: boolean };
@@ -120,6 +124,10 @@ export interface RequestMap {
   'history.restore': { id: string };
 }
 export interface ResponseMap {
+  'bench.open': null;
+  'bench.config': { options: BenchOptions; locale: string };
+  'bench.complete': null;
+  'bench.close': null;
   'tuning.status': TuningStatus;
   'tuning.start': TuningState;
   'tuning.heartbeat': TuningState;
@@ -161,6 +169,14 @@ export interface GpuCapability {
   memory: { current: number; minimum: number; maximum: number } | null;
   canTune: boolean;
   reason: string;
+  telemetry: {
+    coreMHz: number | null;
+    memoryMHz: number | null;
+    maxCoreMHz: number | null;
+    maxMemoryMHz: number | null;
+    watts: number | null;
+    powerLimitWatts: number | null;
+  } | null;
 }
 export interface TuningStatus {
   devices: GpuCapability[];
@@ -169,6 +185,27 @@ export interface TuningStatus {
   cpuTuning: boolean;
   memoryTuning: boolean;
   reason: string;
+  hardware: {
+    board: string;
+    memory: {
+      name: string;
+      capacity: number;
+      configuredMHz: number | null;
+      ratedMHz: number | null;
+    }[];
+    drives: { name: string; bytes: number; connection: string }[];
+  };
+}
+export interface BenchOptions {
+  duration: number;
+  heavy: boolean;
+  cpu: boolean;
+  ram: boolean;
+  automatic: boolean;
+  stepSeconds: number;
+  ssao: boolean;
+  bloom: boolean;
+  shadows: boolean;
 }
 export interface TuningState {
   id: string;
@@ -180,5 +217,6 @@ export interface TuningState {
 }
 export type Method = keyof RequestMap;
 export interface DesktopApi {
+  onBenchStop(callback: () => void): () => void;
   request<M extends Method>(method: M, args: RequestMap[M]): Promise<ResponseMap[M]>;
 }

@@ -3,6 +3,9 @@
   import Icon from './lib/Icon.svelte';
   import ArtIcon from './lib/ArtIcon.svelte';
   import SelectAll from './lib/SelectAll.svelte';
+  import PagedList from './lib/PagedList.svelte';
+  import Details from './lib/Details.svelte';
+  import { selectId } from './lib/selection';
   import StressBench from './lib/StressBench.svelte';
   import { bytes, date } from './lib/format';
   import { applyPreferences, preferredLocale } from './lib/preferences';
@@ -69,8 +72,7 @@
   let folderScope = $state<'all' | 'selected'>('all');
   let folderScanning = $state(false);
   let folderStop = $state(false);
-  let folderPage = $state(0);
-  const folderPageSize = 100;
+  let gameTab = $state('services');
   let profile = $state('');
   let resultKind = $state('');
   const desktop = window.desktop;
@@ -92,14 +94,6 @@
   const visibleFolders = $derived(
     (folders?.entries ?? []).filter((f) =>
       f.path.toLowerCase().includes(folderSearch.toLowerCase()),
-    ),
-  );
-  const folderPages = $derived(Math.max(1, Math.ceil(visibleFolders.length / folderPageSize)));
-  const currentFolderPage = $derived(Math.min(folderPage, folderPages - 1));
-  const pageFolders = $derived(
-    visibleFolders.slice(
-      currentFolderPage * folderPageSize,
-      (currentFolderPage + 1) * folderPageSize,
     ),
   );
   $effect(() => {
@@ -187,7 +181,6 @@
       folderStop = false;
       folders = null;
       selectedFolders = [];
-      folderPage = 0;
       try {
         let current: FolderScan = await request('folders.scan', { scope: folderScope });
         folders = current;
@@ -345,7 +338,7 @@
         <Icon name="shield" size={20} /><strong>{t('local')}</strong>
         <p>{t('private')}</p>
       </div>
-      <div class="version"><span class="status-dot"></span>X SpeedUp <span>v0.4.0</span></div>
+      <div class="version"><span class="status-dot"></span>X SpeedUp <span>v0.5.0</span></div>
     </div>
   </aside>
   <div class="workspace">
@@ -396,10 +389,7 @@
           <Icon name="info" />
           <div>
             <strong>{t('error')}</strong>
-            <details>
-              <summary>{t('details')}</summary>
-              <p>{error}</p>
-            </details>
+            <Details texts={[error]} {t} />
           </div>
           <button class="icon-button" aria-label={t('close')} onclick={() => (error = '')}
             ><Icon name="close" /></button
@@ -413,11 +403,7 @@
               {t('changed')}: {result.changed} · {t('skipped')}: {result.skipped}{#if result.bytes > 0}
                 · {fmt(result.bytes)}{/if}
             </p>
-            <details>
-              <summary>{t('details')}</summary>
-              <p>{result.message}</p>
-              {#each result.details ?? [] as detail}<p class="mono">{detail}</p>{/each}
-            </details>
+            <Details texts={[result.message, ...(result.details ?? [])]} {t} />
           </div>
         </div>{/if}
       {#if busy}<div class="working" role="status">
@@ -542,63 +528,87 @@
               {t('gameUnavailable')}
             </p>{/if}
         </section>
-        <div class="section-heading">
-          <h2>{t('gameServices')}</h2>
-          <button class="text-button" disabled={busy} onclick={() => navigate('gaming')}
-            >{t('refresh')}</button
+        <div class="inner-tabs">
+          <button class:active={gameTab === 'services'} onclick={() => (gameTab = 'services')}
+            >{t('gameServices')}</button
+          ><button class:active={gameTab === 'apps'} onclick={() => (gameTab = 'apps')}
+            >{t('gameApps')}</button
           >
         </div>
-        <SelectAll
-          ids={(gaming?.services ?? []).filter((s) => s.canStop).map((s) => s.id)}
-          bind:selected={gameServices}
-          disabled={busy || !!gaming?.sessionId}
-          label={t('selectAll')}
-        />
-        <div class="panel item-list">
-          {#each gaming?.services ?? [] as service}<label class="select-row">
-              <input
-                type="checkbox"
-                bind:group={gameServices}
-                value={service.id}
-                disabled={busy || !!gaming?.sessionId || !service.canStop}
-              />
-              <span class="row-copy"
-                ><strong>{service.id}</strong><span>{t(`impact.${service.id}`)}</span><small
-                  >{t(
-                    service.state === 4
-                      ? 'running'
-                      : service.state === 1
-                        ? 'stopped'
-                        : 'unavailable',
-                  )}{#if !system?.isAdmin}
-                    · {t('requiresAdmin')}{/if}</small
-                ></span
-              >
-            </label>{/each}
-        </div>
-        <div class="section-heading">
-          <h2>{t('gameApps')}</h2>
-          <span>{t('gameAppsNote')}</span>
-        </div>
-        <SelectAll
-          ids={processes.map((p) => String(p.id))}
-          bind:selected={gameProcesses}
-          disabled={busy || !!gaming?.sessionId}
-          label={t('selectAll')}
-        />
-        <div class="panel item-list">
-          {#each processes as process}<label class="select-row">
-              <input
-                type="checkbox"
-                bind:group={gameProcesses}
-                value={String(process.id)}
-                disabled={busy || !!gaming?.sessionId}
-              />
-              <span class="row-copy"
-                ><strong>{process.name}</strong><small>{process.title}</small></span
-              ><span>{fmt(process.memory)}</span>
-            </label>{:else}<div class="empty">{t('nothing')}</div>{/each}
-        </div>
+        {#if gameTab === 'services'}
+          <div class="section-heading">
+            <h2>{t('gameServices')}</h2>
+            <button class="text-button" disabled={busy} onclick={() => navigate('gaming')}
+              >{t('refresh')}</button
+            >
+          </div>
+          <SelectAll
+            ids={(gaming?.services ?? []).filter((s) => s.canStop).map((s) => s.id)}
+            bind:selected={gameServices}
+            disabled={busy || !!gaming?.sessionId}
+            label={t('selectAll')}
+          />
+          <div class="panel item-list">
+            {#each gaming?.services ?? [] as service}<label class="select-row">
+                <input
+                  type="checkbox"
+                  checked={gameServices.includes(service.id)}
+                  onchange={(event) =>
+                    (gameServices = selectId(
+                      gameServices,
+                      service.id,
+                      event.currentTarget.checked,
+                    ))}
+                  value={service.id}
+                  disabled={busy || !!gaming?.sessionId || !service.canStop}
+                />
+                <span class="row-copy"
+                  ><strong>{service.id}</strong><span>{t(`impact.${service.id}`)}</span><small
+                    >{t(
+                      service.state === 4
+                        ? 'running'
+                        : service.state === 1
+                          ? 'stopped'
+                          : 'unavailable',
+                    )}{#if !system?.isAdmin}
+                      · {t('requiresAdmin')}{/if}</small
+                  ></span
+                >
+              </label>{/each}
+          </div>
+        {:else}
+          <div class="section-heading">
+            <h2>{t('gameApps')}</h2>
+            <span>{t('gameAppsNote')}</span>
+          </div>
+          <SelectAll
+            ids={processes.map((p) => String(p.id))}
+            bind:selected={gameProcesses}
+            disabled={busy || !!gaming?.sessionId}
+            label={t('selectAll')}
+          />
+          <div class="panel item-list">
+            <PagedList items={processes} rowHeight={48} {t}
+              >{#snippet children(pageItems)}{#each pageItems as process}<label class="select-row">
+                    <input
+                      type="checkbox"
+                      checked={gameProcesses.includes(String(process.id))}
+                      onchange={(event) =>
+                        (gameProcesses = selectId(
+                          gameProcesses,
+                          String(process.id),
+                          event.currentTarget.checked,
+                        ))}
+                      value={String(process.id)}
+                      disabled={busy || !!gaming?.sessionId}
+                    />
+                    <span class="row-copy"
+                      ><strong>{process.name}</strong><small>{process.title}</small></span
+                    ><span>{fmt(process.memory)}</span>
+                  </label>{:else}<div class="empty">{t('nothing')}</div>{/each}{/snippet}</PagedList
+            >
+          </div>
+        {/if}
         <div class="action-bar">
           <span>{t('selected')}: <strong>{gameServices.length + gameProcesses.length}</strong></span
           >
@@ -640,26 +650,30 @@
             label={t('selectAll')}
           />
           <div class="panel item-list">
-            {#each scan.categories as category}<div class="cleanup-row">
-                <label class="select-row"
-                  ><input
-                    type="checkbox"
-                    bind:group={selectedCategories}
-                    value={category.id}
-                    disabled={busy || category.files === 0}
-                  /><span class="row-icon"><Icon name="folder" /></span><span class="row-copy"
-                    ><strong>{t(category.id)}</strong><small
-                      >{category.files} {t('files')} · {t('skipped')}: {category.skipped}</small
-                    ></span
-                  ><strong class="row-size">{fmt(category.bytes)}</strong></label
-                >{#if category.samples.length}<details class="file-samples">
-                    <summary>{t('details')}</summary>{#each category.samples as sample}<p
-                        class="mono"
-                      >
-                        {sample}
-                      </p>{/each}
-                  </details>{/if}
-              </div>{/each}
+            <PagedList items={scan.categories} rowHeight={64} {t}
+              >{#snippet children(pageItems)}{#each pageItems as category}<div class="cleanup-row">
+                    <label class="select-row"
+                      ><input
+                        type="checkbox"
+                        checked={selectedCategories.includes(category.id)}
+                        onchange={(event) =>
+                          (selectedCategories = selectId(
+                            selectedCategories,
+                            category.id,
+                            event.currentTarget.checked,
+                          ))}
+                        value={category.id}
+                        disabled={busy || category.files === 0}
+                      /><span class="row-icon"><Icon name="folder" /></span><span class="row-copy"
+                        ><strong>{t(category.id)}</strong><small
+                          >{category.files} {t('files')} · {t('skipped')}: {category.skipped}</small
+                        ></span
+                      ><strong class="row-size">{fmt(category.bytes)}</strong></label
+                    >{#if category.samples.length}<span class="file-samples"
+                        ><Details texts={category.samples} {t} /></span
+                      >{/if}
+                  </div>{/each}{/snippet}</PagedList
+            >
           </div>
           <div class="action-bar">
             <span>{t('selected')}: <strong>{fmt(selectedBytes)}</strong></span><button
@@ -711,17 +725,12 @@
             onclick={() => scanFolders()}>{t('scan')}</button
           >
         </section>
-        {#if folders}<div class="notice">
-            <Icon name={folders.complete ? 'check' : 'info'} />
-            <div>
-              <strong
-                >{t(
-                  folders.complete ? 'complete' : folderScanning ? 'scanning' : 'scanStopped',
-                )}</strong
-              >
-              <p class="mono">{folders.roots.join(' · ')}</p>
-              <p>{t('scanExclusions')}</p>
-            </div>
+        {#if folders}<div class="scan-status">
+            <strong
+              >{t(
+                folders.complete ? 'complete' : folderScanning ? 'scanning' : 'scanStopped',
+              )}</strong
+            ><span title={folders.roots.join(' · ')}>{t('scanExclusions')}</span>
           </div>
           <div class="section-heading">
             <label class="search-field"
@@ -735,39 +744,35 @@
           <SelectAll
             ids={visibleFolders.map((f) => f.id)}
             bind:selected={selectedFolders}
-            disabled={busy || !folders.complete}
+            disabled={busy || !folders?.complete}
             label={t(folderSearch ? 'selectFiltered' : 'selectAll')}
           />
           {#if visibleFolders.length}<div class="panel item-list folder-list">
-              {#each pageFolders as folder}<label class="select-row"
-                  ><input
-                    type="checkbox"
-                    bind:group={selectedFolders}
-                    value={folder.id}
-                    disabled={busy || !folders.complete}
-                  /><span class="row-copy"><strong class="mono">{folder.path}</strong></span></label
-                >{/each}
+              <PagedList items={visibleFolders} rowHeight={36} {t}
+                >{#snippet children(pageItems)}{#each pageItems as folder}<label class="select-row"
+                      ><input
+                        type="checkbox"
+                        checked={selectedFolders.includes(folder.id)}
+                        onchange={(event) =>
+                          (selectedFolders = selectId(
+                            selectedFolders,
+                            folder.id,
+                            event.currentTarget.checked,
+                          ))}
+                        value={folder.id}
+                        disabled={busy || !folders?.complete}
+                      /><span class="row-copy"><strong class="mono">{folder.path}</strong></span
+                      ></label
+                    >{/each}{/snippet}</PagedList
+              >
             </div>{:else}<div class="empty panel">
               <Icon name="folder" size={40} />
               <h3>{t('nothing')}</h3>
             </div>{/if}
-          <div class="pagination">
-            <button
-              class="secondary"
-              disabled={currentFolderPage === 0}
-              onclick={() => (folderPage = currentFolderPage - 1)}>{t('previous')}</button
-            >
-            <span>{currentFolderPage + 1} / {folderPages}</span>
-            <button
-              class="secondary"
-              disabled={currentFolderPage + 1 >= folderPages}
-              onclick={() => (folderPage = currentFolderPage + 1)}>{t('next')}</button
-            >
-          </div>
           <div class="action-bar">
             <span>{t('selected')}: <strong>{selectedFolders.length}</strong></span><button
               class="primary"
-              disabled={busy || !folders.complete || !selectedFolders.length}
+              disabled={busy || !folders?.complete || !selectedFolders.length}
               onclick={applyFolders}>{t('deleteFolders')}</button
             >
             {#if folderScanning}<button
@@ -796,11 +801,9 @@
         {#if registry?.truncated}<div class="notice">
             <Icon name="info" />
             <p>{t('partial')}</p>
-          </div>{/if}{#if registry?.warnings?.length}<details class="notice">
-            <summary>{t('details')}</summary>{#each registry.warnings as warning}<p class="mono">
-                {warning}
-              </p>{/each}
-          </details>{/if}
+          </div>{/if}{#if registry?.warnings?.length}<div class="notice">
+            <Details texts={registry.warnings} {t} />
+          </div>{/if}
         {#if registry?.entries.length}<SelectAll
             ids={registry.entries.filter((e) => e.canChange).map((e) => e.id)}
             bind:selected={selectedEntries}
@@ -808,20 +811,28 @@
             label={t('selectAll')}
           />
           <div class="panel item-list">
-            {#each registry.entries as entry}<label class="select-row registry-row"
-                ><input
-                  type="checkbox"
-                  bind:group={selectedEntries}
-                  value={entry.id}
-                  disabled={busy || !entry.canChange}
-                /><span class="row-copy"
-                  ><strong>{entry.name}</strong><span>{reason(entry.key, entry.reason)}</span><small
-                    class="mono">{entry.key}</small
-                  ><small class="mono"
-                    >{entry.value === 'Пустой раздел' ? t('reason.empty') : entry.value}</small
-                  >{#if !entry.canChange}<small>{t('requiresAdmin')}</small>{/if}</span
-                ></label
-              >{/each}
+            <PagedList items={registry.entries} rowHeight={88} {t}
+              >{#snippet children(pageItems)}{#each pageItems as entry}<label
+                    class="select-row registry-row"
+                    ><input
+                      type="checkbox"
+                      checked={selectedEntries.includes(entry.id)}
+                      onchange={(event) =>
+                        (selectedEntries = selectId(
+                          selectedEntries,
+                          entry.id,
+                          event.currentTarget.checked,
+                        ))}
+                      value={entry.id}
+                      disabled={busy || !entry.canChange}
+                    /><span class="row-copy"
+                      ><strong>{entry.name}</strong><span>{reason(entry.key, entry.reason)}</span
+                      ><small class="mono">{entry.key}</small><small class="mono"
+                        >{entry.value === 'Пустой раздел' ? t('reason.empty') : entry.value}</small
+                      >{#if !entry.canChange}<small>{t('requiresAdmin')}</small>{/if}</span
+                    ></label
+                  >{/each}{/snippet}</PagedList
+            >
           </div>
           <div class="action-bar">
             <span>{t('selected')}: <strong>{selectedEntries.length}</strong></span><button
@@ -858,27 +869,37 @@
           onchange={() => (profile = '')}
         />
         <div class="panel item-list">
-          {#each services as service}<label class="select-row service-row"
-              ><input
-                type="checkbox"
-                bind:group={selectedServices}
-                value={service.id}
-                disabled={busy || !service.canChange}
-                onchange={() => (profile = '')}
-              /><span class="row-copy"
-                ><strong>{service.id}</strong><span>{t(`impact.${service.id}`)}</span><small
-                  >{t(
-                    service.startMode === 2
-                      ? 'automatic'
-                      : service.startMode === 3
-                        ? 'manualStart'
-                        : service.startMode === 4
-                          ? 'disabled'
-                          : 'unavailable',
-                  )}</small
-                ></span
-              ></label
-            >{/each}
+          <PagedList items={services} rowHeight={70} {t}
+            >{#snippet children(pageItems)}{#each pageItems as service}<label
+                  class="select-row service-row"
+                  ><input
+                    type="checkbox"
+                    checked={selectedServices.includes(service.id)}
+                    onchange={(event) => {
+                      selectedServices = selectId(
+                        selectedServices,
+                        service.id,
+                        event.currentTarget.checked,
+                      );
+                      profile = '';
+                    }}
+                    value={service.id}
+                    disabled={busy || !service.canChange}
+                  /><span class="row-copy"
+                    ><strong>{service.id}</strong><span>{t(`impact.${service.id}`)}</span><small
+                      >{t(
+                        service.startMode === 2
+                          ? 'automatic'
+                          : service.startMode === 3
+                            ? 'manualStart'
+                            : service.startMode === 4
+                              ? 'disabled'
+                              : 'unavailable',
+                      )}</small
+                    ></span
+                  ></label
+                >{/each}{/snippet}</PagedList
+          >
         </div>
         <div class="action-bar">
           <span>{t('selected')}: <strong>{selectedServices.length}</strong></span><button
@@ -912,28 +933,32 @@
           <div class="table-header">
             <span>{t('app')}</span><span>{t('ram')}</span><span>{t('action')}</span>
           </div>
-          {#each visibleProcesses as process}<div class="process-row">
-              <div class="process-name">
-                <span class="row-icon"><Icon name="activity" /></span><span
-                  ><strong>{process.name}</strong><small title={process.title}
-                    >{process.title}</small
-                  ><small>PID {process.id}</small></span
-                >
-              </div>
-              <strong>{fmt(process.memory)}</strong>
-              <div class="process-actions">
-                <button
-                  class="secondary"
-                  disabled={busy}
-                  onclick={() => manageProcess(process, true)}>{t('releaseMemory')}</button
-                ><button class="text-button" disabled={busy} onclick={() => manageProcess(process)}
-                  >{t('close')}</button
-                >
-              </div>
-            </div>{:else}<div class="empty">
-              <Icon name="activity" size={40} />
-              <h3>{t('nothing')}</h3>
-            </div>{/each}
+          <PagedList items={visibleProcesses} rowHeight={66} {t}
+            >{#snippet children(pageItems)}{#each pageItems as process}<div class="process-row">
+                  <div class="process-name">
+                    <span class="row-icon"><Icon name="activity" /></span><span
+                      ><strong>{process.name}</strong><small title={process.title}
+                        >{process.title}</small
+                      ><small>PID {process.id}</small></span
+                    >
+                  </div>
+                  <strong>{fmt(process.memory)}</strong>
+                  <div class="process-actions">
+                    <button
+                      class="secondary"
+                      disabled={busy}
+                      onclick={() => manageProcess(process, true)}>{t('releaseMemory')}</button
+                    ><button
+                      class="text-button"
+                      disabled={busy}
+                      onclick={() => manageProcess(process)}>{t('close')}</button
+                    >
+                  </div>
+                </div>{:else}<div class="empty">
+                  <Icon name="activity" size={40} />
+                  <h3>{t('nothing')}</h3>
+                </div>{/each}{/snippet}</PagedList
+          >
         </div>
       {:else if page === 'history'}
         <div class="notice">
@@ -941,32 +966,32 @@
           <p>{t('historyNote')}</p>
         </div>
         {#if history.length}<div class="history-list">
-            {#each history as entry}<article class="history-card panel">
-                <span class="tool-icon"><Icon name="history" /></span>
-                <div>
-                  <span class="eyebrow">{date(entry.createdAt, language)}</span>
-                  <h3>{t(historyKind(entry.kind))}</h3>
-                  <p>
-                    {t(
-                      entry.restored
-                        ? 'restored'
-                        : entry.canRestore
-                          ? 'backupAvailable'
-                          : 'noRecovery',
-                    )}
-                  </p>
-                  <details>
-                    <summary>{t('details')}</summary>
-                    <p>{entry.summary}</p>
-                    {#each entry.details as detail}<p class="mono">{detail}</p>{/each}
-                  </details>
-                </div>
-                {#if entry.canRestore}<button
-                    class="secondary"
-                    disabled={busy}
-                    onclick={() => restore(entry.id)}>{t('restore')}</button
-                  >{/if}
-              </article>{/each}
+            <PagedList items={history} rowHeight={84} {t}
+              >{#snippet children(pageItems)}{#each pageItems as entry}<article
+                    class="history-card panel"
+                  >
+                    <span class="tool-icon"><Icon name="history" /></span>
+                    <div>
+                      <span class="eyebrow">{date(entry.createdAt, language)}</span>
+                      <h3>{t(historyKind(entry.kind))}</h3>
+                      <p>
+                        {t(
+                          entry.restored
+                            ? 'restored'
+                            : entry.canRestore
+                              ? 'backupAvailable'
+                              : 'noRecovery',
+                        )}
+                      </p>
+                      <Details texts={[entry.summary, ...entry.details]} {t} />
+                    </div>
+                    {#if entry.canRestore}<button
+                        class="secondary"
+                        disabled={busy}
+                        onclick={() => restore(entry.id)}>{t('restore')}</button
+                      >{/if}
+                  </article>{/each}{/snippet}</PagedList
+            >
           </div>{:else}<div class="empty panel">
             <Icon name="history" size={42} />
             <h3>{t('noHistory')}</h3>

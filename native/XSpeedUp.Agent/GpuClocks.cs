@@ -4,7 +4,8 @@ using System.Text;
 namespace XSpeedUp.Agent;
 
 public record ClockRange(int Current, int Minimum, int Maximum);
-public record GpuCapability(string Id, string Name, int? Temperature, ClockRange? Core, ClockRange? Memory, bool CanTune, string Reason);
+public record GpuTelemetry(uint? CoreMHz, uint? MemoryMHz, uint? MaxCoreMHz, uint? MaxMemoryMHz, double? Watts, double? PowerLimitWatts);
+public record GpuCapability(string Id, string Name, int? Temperature, ClockRange? Core, ClockRange? Memory, bool CanTune, string Reason, GpuTelemetry? Telemetry = null);
 public interface IGpuClocks
 {
     GpuCapability[] Discover();
@@ -40,7 +41,12 @@ public sealed class NvidiaClocks : IGpuClocks
                 try { temperature = Temperature(uuid.ToString()); } catch (Exception ex) when (Unavailable(ex)) { reason = ex.Message; }
                 bool supported = core is not null && core.Maximum >= core.Current + 15 && temperature is not null;
                 if (!Services.IsAdmin) reason = "Administrator rights are required for clock writes.";
-                result.Add(new(uuid.ToString(), name.ToString(), temperature, core, memory, supported && Services.IsAdmin, reason));
+                uint? Query(Func<uint?> query) { try { return query(); } catch (Exception ex) when (Unavailable(ex)) { return null; } }
+                uint? Clock(uint domain, bool maximum) => Query(() => { uint value; int code = maximum ? MaxClock(device, domain, out value) : CurrentClock(device, domain, out value); return code == 0 ? value : null; });
+                var power = Query(() => Power(device, out var value) == 0 ? value : null);
+                var limit = Query(() => PowerLimit(device, out var value) == 0 ? value : null);
+                result.Add(new(uuid.ToString(), name.ToString(), temperature, core, memory, supported && Services.IsAdmin, reason,
+                    new(Clock(0, false), Clock(2, false), Clock(0, true), Clock(2, true), power / 1000.0, limit / 1000.0)));
             }
         }
         catch (Exception ex) when (Unavailable(ex)) { if (result.Count == 0) result.Add(new("", "NVIDIA NVML", null, null, null, false, ex.Message)); }
@@ -65,6 +71,10 @@ public sealed class NvidiaClocks : IGpuClocks
         if (Read(id, domain).Current != offset) throw new IOException("Driver did not confirm the requested clock offset.");
     }
     // Load only the driver-installed system DLL, never an application-directory DLL.
+    [DllImport("nvml.dll", EntryPoint="nvmlDeviceGetClockInfo"), DefaultDllImportSearchPaths(DllImportSearchPath.System32)] private static extern int CurrentClock(IntPtr device, uint domain, out uint value);
+    [DllImport("nvml.dll", EntryPoint="nvmlDeviceGetMaxClockInfo"), DefaultDllImportSearchPaths(DllImportSearchPath.System32)] private static extern int MaxClock(IntPtr device, uint domain, out uint value);
+    [DllImport("nvml.dll", EntryPoint="nvmlDeviceGetPowerUsage"), DefaultDllImportSearchPaths(DllImportSearchPath.System32)] private static extern int Power(IntPtr device, out uint value);
+    [DllImport("nvml.dll", EntryPoint="nvmlDeviceGetPowerManagementLimit"), DefaultDllImportSearchPaths(DllImportSearchPath.System32)] private static extern int PowerLimit(IntPtr device, out uint value);
     [DllImport("nvml.dll", EntryPoint="nvmlInit_v2"), DefaultDllImportSearchPaths(DllImportSearchPath.System32)] private static extern int Init();
     [DllImport("nvml.dll", EntryPoint="nvmlDeviceGetCount_v2"), DefaultDllImportSearchPaths(DllImportSearchPath.System32)] private static extern int Count(out uint count);
     [DllImport("nvml.dll", EntryPoint="nvmlDeviceGetHandleByIndex_v2"), DefaultDllImportSearchPaths(DllImportSearchPath.System32)] private static extern int At(uint index, out IntPtr device);

@@ -79,7 +79,7 @@ async function dockVisible() {
       box &&
         box.y >= 0 &&
         box.y + box.height <= size.height &&
-        box.x >= 210 &&
+        box.x >= 190 &&
         box.x + box.width <= size.width,
       'Action dock stays in viewport',
     );
@@ -108,19 +108,41 @@ try {
   assert.ok(
     await page.locator('.hero-art').evaluate((img) => img.complete && img.naturalWidth > 0),
   );
+  assert.equal(await page.locator('svg').count(), 0, 'Production icons use PNG assets');
   assert.ok(
-    await page.evaluate(async () => {
-      const source = getComputedStyle(
-        document.querySelector('.generated-icon'),
-      ).backgroundImage.match(/url\("?([^"\)]+)"?\)/)?.[1];
-      return await new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(img.naturalWidth > 0);
-        img.onerror = () => resolve(false);
-        img.src = source;
-      });
+    await page.locator('.hero-art').evaluate((img) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let i = 3; i < pixels.length; i += 4) if (pixels[i] !== 255) return false;
+      return true;
     }),
-    'Generated navigation atlas loads',
+    'Application icon has no transparent pixels',
+  );
+  assert.ok(
+    await page
+      .locator('nav .raster-icon')
+      .first()
+      .evaluate(async (img) => {
+        await img.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        return (
+          pixels[3] === 0 && pixels.some((alpha, i) => i % 4 === 3 && alpha > 0 && alpha < 255)
+        );
+      }),
+    'Internal icons have transparent backgrounds and antialiased edges',
+  );
+  assert.ok(
+    (await page.locator('nav .raster-icon').count()) === 9,
+    'Transparent raster navigation icons load',
   );
   await capture('overview');
   await app.evaluate(({ dialog }, fixture) => {
@@ -187,13 +209,32 @@ try {
     (await page.locator('.summary-panel h2').innerText()).includes('5103'),
     'All slices complete automatically beyond 5000',
   );
-  assert.equal(
-    await page.locator('.folder-list input[type=checkbox]').count(),
-    100,
-    'Results are paginated',
+  assert.ok(
+    (await page.locator('.folder-list input[type=checkbox]').count()) < 30,
+    'Rows fit the available window height',
   );
   await master.check();
   assert.ok((await page.locator('.action-bar').innerText()).includes('5103'));
+  await page.locator('.folder-list input[type=checkbox]').first().uncheck();
+  assert.ok(
+    (await page.locator('.action-bar').innerText()).includes('5102'),
+    'Unchecking one row preserves all other pages',
+  );
+  await page
+    .locator('.folder-list')
+    .getByRole('button', { name: t('next'), exact: true })
+    .click();
+  await page.locator('.folder-list input[type=checkbox]').first().uncheck();
+  assert.ok(
+    (await page.locator('.action-bar').innerText()).includes('5101'),
+    'Unchecking a second page preserves hidden selections',
+  );
+  await page
+    .locator('.folder-list')
+    .getByRole('button', { name: t('previous'), exact: true })
+    .click();
+  assert.equal(await page.locator('.folder-list input[type=checkbox]').first().isChecked(), false);
+  await master.check();
   await page.getByPlaceholder(t('filter')).fill('empty-000');
   await master.uncheck();
   assert.ok(
@@ -245,13 +286,38 @@ try {
   await navigate('stress');
   await page.getByLabel(t('complexGeometry'), { exact: true }).uncheck();
   await page.getByLabel(t('duration'), { exact: true }).selectOption('3');
+  const benchPromise = app.waitForEvent('window');
   await page.getByRole('button', { name: t('stressStart'), exact: true }).click();
-  await ready();
-  await page.getByText(t('stressDone'), { exact: true }).waitFor({ timeout: 20000 });
+  const bench = await benchPromise;
+  bench.on('pageerror', (error) => errors.push(error.message));
+  await bench.waitForSelector('.benchmark-header');
   assert.ok(
-    (await page.locator('.page-note').innerText()).includes('GPU:'),
-    'GPU readback validation ran',
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().some((w) => w.isFullScreen() && w.getParentWindow()),
+    ),
+    'Separate fullscreen child window',
   );
+  const denied = await bench.evaluate(async () => {
+    try {
+      await window.desktop.request('services.list', {});
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  assert.ok(denied, 'Benchmark cannot invoke maintenance operations');
+  await bench.waitForFunction(() =>
+    document.querySelector('.bench-checks')?.textContent?.match(/GPU: [1-9]/),
+  );
+  await bench.screenshot({ path: 'artifacts/screenshots/fullscreen-benchmark.png' });
+  await bench.getByText(t('stressDone'), { exact: true }).waitFor({ timeout: 30000 });
+  assert.ok(
+    (await bench.locator('.bench-checks').innerText()).includes('SSAO'),
+    'Advanced effects default on',
+  );
+  await bench.keyboard.press('Escape');
+  await bench.waitForEvent('close');
+  await ready();
   await dockVisible();
   await capture('stress');
   await navigate('processes');
@@ -274,10 +340,58 @@ try {
     ]) {
       await navigate(id);
       assert.equal(await page.locator('h1').innerText(), t(`title.${id}`));
+      if (id === 'stress') {
+        for (const hardware of ['CPU', 'RAM', 'SSD', 'GPU']) {
+          await page
+            .locator('.inner-tabs')
+            .getByRole('button', { name: hardware, exact: true })
+            .click();
+          assert.ok(
+            await page.evaluate(
+              () =>
+                document.querySelector('main').scrollHeight <=
+                document.querySelector('main').clientHeight + 1,
+            ),
+            value + '/' + hardware + ' hardware tab fits',
+          );
+        }
+        await page.locator('main > .notice .details-button').click();
+        const dialog = page.locator('dialog[open]');
+        await dialog.waitFor();
+        assert.ok(
+          await dialog.evaluate((el) => el.scrollHeight <= el.clientHeight + 1),
+          'Details use pages instead of scrolling',
+        );
+        for (const box of await dialog
+          .locator('.detail-text')
+          .evaluateAll((els) =>
+            els.map((el) => ({ scroll: el.scrollHeight, height: el.clientHeight })),
+          ))
+          assert.ok(box.scroll <= box.height, value + ' complete detail text fits each row');
+        await dialog.getByRole('button', { name: t('close'), exact: true }).click();
+      }
       assert.equal(
         await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
         false,
         `${value}/${id} compact width`,
+      );
+      const outside = await page.evaluate(() =>
+        [...document.querySelectorAll('main button, main input, main h2, .page-rows > *')]
+          .filter((el) => {
+            if (!el.getClientRects().length || el.closest('details:not([open])')) return false;
+            const r = el.getBoundingClientRect();
+            return r.bottom > innerHeight || r.top < 0 || r.right > innerWidth;
+          })
+          .map((el) => el.textContent?.slice(0, 80) || el.tagName),
+      );
+      assert.deepEqual(outside, [], value + '/' + id + ' content fits vertically');
+      assert.ok(
+        await page.evaluate(
+          () =>
+            document.querySelector('main').scrollHeight <=
+            document.querySelector('main').clientHeight + 1,
+        ),
+        value + '/' + id + ' no main scrolling',
       );
       if (await page.locator('.action-bar').count()) await dockVisible();
     }

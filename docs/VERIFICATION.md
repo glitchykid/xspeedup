@@ -1,5 +1,15 @@
 # Verification
 
+## 0.5.0 — 2026-09-28
+
+- Native harness: 121 assertions passed. TypeScript: 13 tests passed. New cases cover transient/persistent Windows journal locks, custom clock-step bounds, prevention of false completion at an intermediate stage, cross-page selection, projection math and requiring a verified pass from every worker.
+- Svelte/TypeScript checks passed with zero diagnostics. The separate fullscreen window completed GPU + CPU + RAM testing with antialiasing and stopped active workers on native close. The default heavy scene also passed a three-second render/readback check on the GTX 1050 Ti. This is a short rendering check, not a stability certification or sustained thermal test.
+- Desktop integration verifies nine primary pages in all six languages at the 1020 × 720 minimum size, vertical element bounds, fixed actions, 5,103 selected-folder results, single-row deselection across pages/filters, exact trusted-window IPC restrictions, raster icon alpha and paginated diagnostics.
+- The Windows x64 NSIS installer `X-SpeedUp-Setup-0.5.0.exe` was built. The same integration suite passed against the unpacked production executable without a development SDK, including all four hardware tabs, opaque application artwork, transparent internal icons and fullscreen GPU checks.
+- TDD regressions reproduced an incomplete worker being hidden by aggregate pass counts, missing antialiasing, a premature intermediate-stage completion, and a transient Windows lock preventing atomic journal replacement before the respective fixes.
+
+GPU clock writes are tested with injected adapters only. No developer-machine file cleanup, registry/service writes, application closure, working-set trimming or clock changes were performed. CPU/RAM/SSD clock controls remain unimplemented. Installer installation/uninstallation and prolonged elevated hardware tuning require separate acceptance testing.
+
 ## 0.4.0 — 2026-09-28
 
 - Native regression harness: 111 assertions passed. TypeScript suite: 9 tests passed. Coverage includes automatic traversal beyond 5,000 empty folders, selected-root protection, bulk deletion in isolated fixtures, gaming restoration, bounded clock steps, partial driver failure, thermal/heartbeat recovery, idempotent recovery cleanup, external-change preservation and pending recovery beyond the recent-history limit.

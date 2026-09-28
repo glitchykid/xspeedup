@@ -1,6 +1,10 @@
 import type { Method, RequestMap } from '../shared/contracts';
 
 const methods = new Set([
+  'bench.open',
+  'bench.config',
+  'bench.complete',
+  'bench.close',
   'tuning.status',
   'tuning.start',
   'tuning.heartbeat',
@@ -41,16 +45,25 @@ const mutations = new Set<Method>([
   'history.restore',
 ]);
 export const isMutation = (method: Method) => mutations.has(method);
-export function validateRequest(
-  method: unknown,
-  input: unknown,
-): { method: Method; args: RequestMap[Method] } {
+type ValidatedRequest = { [M in Method]: { method: M; args: RequestMap[M] } }[Method];
+export function validateRequest(method: unknown, input: unknown): ValidatedRequest {
   if (typeof method !== 'string' || !methods.has(method)) throw new Error('Неизвестная операция.');
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Некорректный запрос.');
   const args = input as Record<string, unknown>;
   const keys: Record<string, string[]> = {
-    'tuning.start': ['deviceId'],
+    'bench.open': [
+      'duration',
+      'heavy',
+      'cpu',
+      'ram',
+      'automatic',
+      'stepSeconds',
+      'ssao',
+      'bloom',
+      'shadows',
+    ],
+    'tuning.start': ['deviceId', 'stepSeconds'],
     'tuning.heartbeat': ['id'],
     'tuning.advance': ['id'],
     'tuning.finish': ['id', 'completed'],
@@ -74,6 +87,17 @@ export function validateRequest(
     throw new Error('Некорректные параметры.');
   for (const key of expected) {
     const value = args[key];
+    if (['heavy', 'cpu', 'ram', 'automatic', 'ssao', 'bloom', 'shadows'].includes(key)) {
+      if (typeof value !== 'boolean') throw new Error('Invalid benchmark option.');
+      continue;
+    }
+    if (key === 'stepSeconds' || key === 'duration') {
+      const minimum = key === 'stepSeconds' ? 10 : 3;
+      const maximum = key === 'stepSeconds' ? 120 : 600;
+      if (!Number.isInteger(value) || (value as number) < minimum || (value as number) > maximum)
+        throw new Error(`Duration must be ${minimum}–${maximum} seconds.`);
+      continue;
+    }
     if (key === 'completed') {
       if (typeof value !== 'boolean') throw new Error('Некорректный результат тестирования.');
       continue;
@@ -122,5 +146,5 @@ export function validateRequest(
     } else if (typeof value !== 'string' || value.length > 100 || value.length === 0)
       throw new Error('Некорректный идентификатор.');
   }
-  return { method: method as Method, args: args as RequestMap[Method] };
+  return { method, args } as ValidatedRequest;
 }

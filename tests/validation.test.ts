@@ -34,3 +34,28 @@ test('zero, invalid and large metrics remain readable', () => {
   assert.equal(bytes(1024), '1 КБ');
   assert.equal(bytes(1024 ** 4), '1 ТБ');
 });
+test('fullscreen benchmark options and tuning interval are bounded and typed', () => {
+  const options = {
+    duration: 30,
+    heavy: true,
+    cpu: false,
+    ram: false,
+    automatic: false,
+    stepSeconds: 45,
+    ssao: true,
+    bloom: true,
+    shadows: true,
+  };
+  assert.equal(validateRequest('bench.open', options).method, 'bench.open');
+  for (const stepSeconds of [0, 9, 121, NaN, 10.5, '45']) {
+    assert.throws(() => validateRequest('tuning.start', { deviceId: 'GPU-fixture', stepSeconds }));
+    assert.throws(() => validateRequest('bench.open', { ...options, stepSeconds }));
+  }
+  assert.throws(() => validateRequest('bench.open', { ...options, cpu: 'yes' }));
+  assert.throws(() => validateRequest('bench.open', { ...options, duration: 601 }));
+  assert.throws(() => validateRequest('bench.open', { ...options, path: 'arbitrary' }));
+  assert.equal(
+    validateRequest('tuning.start', { deviceId: 'GPU-fixture', stepSeconds: 120 }).method,
+    'tuning.start',
+  );
+});
