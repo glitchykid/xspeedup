@@ -7,6 +7,7 @@
 - Production Svelte diagnostics: 0 errors and 0 warnings; TypeScript and self-contained .NET builds passed.
 - The Windows x64 installer `X-SpeedUp-Setup-0.3.1.exe` was built and reports product version 0.3.1.
 - Packaged Electron integration passed for seven screens, both themes, all six locales, active-tab hover, preference persistence, generated assets, minimum window size, read-only Windows scans and IPC isolation.
+- [Release workflow](https://github.com/glitchykid/xspeedup/actions/runs/36455998508) completed successfully. The [published installer](https://github.com/glitchykid/xspeedup/releases/tag/v0.3.1) was downloaded, reports version 0.3.1, and matches `SHA256SUMS.txt`: `31b3f0c5e3bb9439b87ce42088e04e7c492792b50a8fd42947f26787b3e4d253`.
 
 No maintenance actions were executed against the host during desktop verification. The native OS mutation and installer installation/uninstallation acceptance limits described below still apply.
 
