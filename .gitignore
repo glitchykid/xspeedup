@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-electron/
+release/
+artifacts/
+.cache/
+.tools/
+**/bin/
+**/obj/
+*.user
+*.log
+.env*
+!.env.example

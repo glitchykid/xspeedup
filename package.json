@@ -1,0 +1,65 @@
+{
+  "name": "xspeedup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A transparent Windows maintenance utility with reversible system changes.",
+  "author": "X SpeedUp contributors",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite --host 127.0.0.1",
+    "build:ui": "vite build && node scripts/build-electron.mjs",
+    "build:agent": "node scripts/dotnet.mjs publish native/XSpeedUp.Agent -c Release -r win-x64 --self-contained true -o artifacts/agent",
+    "build": "npm run check && npm run build:ui && npm run build:agent",
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
+    "test": "node scripts/dotnet.mjs run --project native/XSpeedUp.Tests && tsx --test tests/*.test.ts",
+    "test:desktop": "node scripts/smoke.mjs",
+    "start": "node scripts/start.mjs",
+    "package": "npm run build && electron-builder --win nsis --x64"
+  },
+  "build": {
+    "appId": "io.github.glitchykid.xspeedup",
+    "productName": "X SpeedUp",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "artifacts/agent",
+        "to": "agent"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "asar": true
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@types/node": "24.19.0",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "playwright": "1.63.0",
+    "prettier": "3.9.9",
+    "prettier-plugin-svelte": "4.1.1",
+    "svelte": "5.57.1",
+    "svelte-check": "4.7.6",
+    "tsx": "4.23.15",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite": "8.3.1"
+  }
+}

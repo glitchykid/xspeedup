@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-electron
+release
+artifacts
+.cache
+.tools
+native/**/bin
+native/**/obj
+package-lock.json
