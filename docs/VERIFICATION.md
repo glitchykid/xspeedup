@@ -1,5 +1,12 @@
 # Verification
 
+## 0.2.1 — 2026-09-28
+
+- Production build and Svelte/TypeScript checks passed after the packaging correction.
+- The local NSIS artifact is `X-SpeedUp-Setup-0.2.1.exe`, matching the release workflow and checksum filename.
+- The installer reports product version 0.2.1. The complete read-only Electron smoke test also passed against the packaged executable, including all six screens in both themes, persistence, keyboard controls, and minimum window size.
+- [Release workflow](https://github.com/glitchykid/xspeedup/actions/runs/36449704440) completed successfully. The [published installer](https://github.com/glitchykid/xspeedup/releases/tag/v0.2.1) was downloaded and its SHA-256 digest and filename matched `SHA256SUMS.txt`.
+
 ## 0.2.0 — 2026-09-28
 
 - Svelte diagnostics: 0 errors and 0 warnings; TypeScript checks passed.
