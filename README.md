@@ -2,7 +2,7 @@
 
 A Windows desktop maintenance app with an Electron + Svelte interface and a C#/.NET agent. Inspect disk and memory usage, remove old temporary files, review stale startup registry values, choose optional service profiles, and close unused applications. The interface is in Russian; project documentation is in English.
 
-**Status:** version 0.2.0 for Windows x64, with a brutalist interface and light/dark themes. Operations are explicit, local, and reviewed before execution. There is no automatic optimization, telemetry, or promise of a particular performance gain.
+**Status:** version 0.2.1 for Windows x64, with a brutalist interface and light/dark themes. Operations are explicit, local, and reviewed before execution. There is no automatic optimization, telemetry, or promise of a particular performance gain.
 
 ## Interface and themes
 
@@ -51,7 +51,7 @@ npm start
 npm run package
 ```
 
-Output: `release/X SpeedUp Setup 0.2.0.exe`, with an unpacked application in `release/win-unpacked/`. The installer includes the .NET runtime; end users do not need Node.js or .NET installed. The first packaging run downloads Electron and NSIS build tools.
+Output: `release/X-SpeedUp-Setup-0.2.1.exe`, with an unpacked application in `release/win-unpacked/`. The installer includes the .NET runtime; end users do not need Node.js or .NET installed. The first packaging run downloads Electron and NSIS build tools. The installer uses the same filename locally, on GitHub, and in `SHA256SUMS.txt`.
 
 The build is unsigned unless a code-signing certificate is configured in your environment. Windows may display an unknown-publisher prompt. No signing credentials are stored in this repository. `npm run package` creates local artifacts. Installers are also published through the version-tag release workflow described below.
 

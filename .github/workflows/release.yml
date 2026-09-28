@@ -41,7 +41,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $releaseVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $installerName = "X SpeedUp Setup $releaseVersion.exe"
+          $installerName = "X-SpeedUp-Setup-$releaseVersion.exe"
           $installerPath = Join-Path release $installerName
           $checksum = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$checksum  $installerName" | Set-Content -LiteralPath release/SHA256SUMS.txt -Encoding utf8

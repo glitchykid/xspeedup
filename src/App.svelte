@@ -243,7 +243,7 @@
         <Icon name="shield" size={22} /><strong>Локально. Прозрачно.</strong>
         <p>Данные остаются<br />на вашем компьютере.</p>
       </div>
-      <div class="version"><span class="status-dot"></span> X SpeedUp <span>v0.2.0</span></div>
+      <div class="version"><span class="status-dot"></span> X SpeedUp <span>v0.2.1</span></div>
     </div>
   </aside>
 

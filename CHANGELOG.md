@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 — 2026-09-28
+
+- Use a stable installer filename without spaces so GitHub downloads and checksum entries match.
+
 ## 0.2.0 — 2026-09-28
 
 - Reworked all six screens into a brutalist interface with sharp geometry, heavy typography, visible borders, solid accents and hard shadows.
