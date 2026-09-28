@@ -21,6 +21,32 @@ public record ServiceDefinition(string Id, string Name, string Description, stri
 public record ServiceItem(string Id, string Name, string Description, string Impact, string[] Profiles,
     bool Installed, string Status, uint StartMode, bool CanChange);
 public record ProcessItem(int Id, string Name, long Memory, string Title, string StartTime);
+public record GameService(string Id, uint State, bool CanStop);
+public record GameStatus(string? SessionId, int? WindowsMode, bool SettingAvailable, GameService[] Services);
+public record GameProcess(int Id, string StartTime);
+public sealed class GameBackup
+{
+    public int? OriginalMode { get; set; }
+    public bool RestoreMode { get; set; }
+    public List<string> StoppedServices { get; set; } = [];
+}
+public sealed class TuningBackup
+{
+    public string Device { get; set; } = "";
+    public int OriginalCore { get; set; }
+    public int? OriginalMemory { get; set; }
+    public int ExpectedCore { get; set; }
+    public int? ExpectedMemory { get; set; }
+    public int PreviousCore { get; set; }
+    public int? PreviousMemory { get; set; }
+    public int PassedCore { get; set; }
+    public int? PassedMemory { get; set; }
+    public int Stage { get; set; }
+    public DateTime Heartbeat { get; set; }
+    public DateTime StageStarted { get; set; }
+    public bool Completed { get; set; }
+}
+public record TuningState(string Id, int Stage, int Core, int? Memory, int Temperature, bool More);
 public sealed class Backup
 {
     public string Name { get; set; } = "";
@@ -39,4 +65,6 @@ public sealed class JournalEntry
     public List<string> Details { get; set; } = [];
     public List<Backup> Backups { get; set; } = [];
     public List<RegistryBackup> RegistryBackups { get; set; } = [];
+    public GameBackup? Game { get; set; }
+    public TuningBackup? Tuning { get; set; }
 }

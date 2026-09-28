@@ -176,11 +176,12 @@ public sealed class RegistryMaintenance(Journal journal, IRegistryStore? registr
         latest = new(Guid.NewGuid().ToString("N"), entries, limited, warnings);
         return latest;
     }
+    public ActionResult ApplyAll(string scanId) => Apply(scanId, latest?.Entries.Where(e => e.CanChange).Select(e => e.Id).ToArray() ?? []);
     public ActionResult Apply(string scanId, string[] ids)
     {
         if (latest is null || latest.Id != scanId || DateTime.UtcNow - scannedAt > TimeSpan.FromMinutes(15))
             throw new InvalidOperationException("Анализ реестра устарел. Выполните его заново.");
-        if (ids.Length == 0 || ids.Length > 256 || ids.Any(id => !candidates.ContainsKey(id))) throw new ArgumentException("Некорректный выбор записей.");
+        if (ids.Length == 0 || ids.Any(id => !candidates.ContainsKey(id))) throw new ArgumentException("Некорректный выбор записей.");
         var entry = new JournalEntry { Kind = "registry-v2", Summary = "Резервная копия записей реестра перед очисткой." };
         int changed = 0, skipped = 0;
         foreach (var id in ids.Distinct())

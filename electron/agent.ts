@@ -55,7 +55,11 @@ export class Agent {
         );
     });
   }
-  request<M extends Method>(method: M, args: RequestMap[M]): Promise<ResponseMap[M]> {
+  request<M extends Method>(
+    method: M,
+    args: RequestMap[M],
+    trustedRoot?: string,
+  ): Promise<ResponseMap[M]> {
     if (!this.child) this.start();
     return new Promise((resolve, reject) => {
       const id = randomUUID();
@@ -69,7 +73,10 @@ export class Agent {
         120_000,
       );
       this.pending.set(id, { resolve: (data) => resolve(data as ResponseMap[M]), reject, timer });
-      this.child!.stdin.write(JSON.stringify({ id, method, args }) + '\n');
+      this.child!.stdin.write(
+        JSON.stringify({ id, method, args: trustedRoot ? { ...args, root: trustedRoot } : args }) +
+          '\n',
+      );
     });
   }
   stop(error = new Error('Приложение закрыто.')) {

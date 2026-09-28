@@ -21,7 +21,7 @@ test('new maintenance routes keep path authority out of renderer requests', () =
   assert.throws(() => validateRequest('folders.scan', { root: 'C:\\' }));
   assert.throws(() => validateRequest('folders.apply', { scanId: 'id', entryIds: ['C:\\data'] }));
   assert.throws(() =>
-    validateRequest('folders.apply', { scanId: 'id', entryIds: Array(257).fill('id') }),
+    validateRequest('folders.apply', { scanId: 'id', entryIds: Array(100001).fill('id') }),
   );
   assert.throws(() =>
     validateRequest('memory.release', { processId: 1, startTime: 'x', all: true }),
@@ -31,4 +31,38 @@ test('new maintenance routes keep path authority out of renderer requests', () =
   assert.equal(isMutation('folders.apply'), true);
   assert.equal(isMutation('memory.release'), true);
   assert.equal(isMutation('folders.continue'), false);
+  assert.equal(
+    validateRequest('folders.apply', { scanId: 'id', entryIds: 'all' }).method,
+    'folders.apply',
+  );
+  assert.equal(validateRequest('folders.scan', { scope: 'selected' }).method, 'folders.scan');
+  assert.throws(() => validateRequest('folders.scan', { scope: 'selected', root: 'C:\\Windows' }));
+  assert.throws(() => validateRequest('folders.scan', { scope: 'C:\\Windows' }));
+});
+test('gaming only accepts the balanced service catalog and explicit process identities', () => {
+  assert.equal(
+    validateRequest('gaming.start', { serviceIds: [], processes: [] }).method,
+    'gaming.start',
+  );
+  assert.equal(isMutation('gaming.start'), true);
+  assert.equal(isMutation('gaming.stop'), true);
+  assert.throws(() =>
+    validateRequest('gaming.start', { serviceIds: ['WinDefend'], processes: [] }),
+  );
+  assert.throws(() =>
+    validateRequest('gaming.start', {
+      serviceIds: [],
+      processes: [{ id: 1, startTime: 'x', command: 'evil' }],
+    }),
+  );
+  assert.throws(() =>
+    validateRequest('gaming.start', {
+      serviceIds: [],
+      processes: [
+        { id: 1, startTime: 'x' },
+        { id: 1, startTime: 'x' },
+      ],
+    }),
+  );
+  assert.throws(() => validateRequest('gaming.settings', { url: 'https://example.org' }));
 });

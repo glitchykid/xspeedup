@@ -2,13 +2,16 @@
   import { onMount } from 'svelte';
   import Icon from './lib/Icon.svelte';
   import ArtIcon from './lib/ArtIcon.svelte';
+  import SelectAll from './lib/SelectAll.svelte';
+  import StressBench from './lib/StressBench.svelte';
   import { bytes, date } from './lib/format';
-  import { applyPreferences, preferredLocale, preferredTheme, type Theme } from './lib/preferences';
+  import { applyPreferences, preferredLocale } from './lib/preferences';
   import { createTranslator, locales, localeNames } from '../shared/i18n';
   import type {
     ActionResult,
     CleanupScan,
     FolderScan,
+    GameStatus,
     HistoryItem,
     Method,
     ProcessItem,
@@ -19,9 +22,19 @@
     SystemInfo,
   } from '../shared/contracts';
   type Page =
-    'overview' | 'cleanup' | 'folders' | 'registry' | 'services' | 'processes' | 'history';
+    | 'overview'
+    | 'cleanup'
+    | 'folders'
+    | 'registry'
+    | 'services'
+    | 'processes'
+    | 'history'
+    | 'gaming'
+    | 'stress';
   const pages: { id: Page; icon: string }[] = [
     { id: 'overview', icon: 'grid' },
+    { id: 'gaming', icon: 'bolt' },
+    { id: 'stress', icon: 'sliders' },
     { id: 'cleanup', icon: 'clean' },
     { id: 'folders', icon: 'folder' },
     { id: 'registry', icon: 'registry' },
@@ -30,7 +43,6 @@
     { id: 'history', icon: 'history' },
   ];
   let language = $state(preferredLocale());
-  let theme = $state<Theme>(preferredTheme());
   const t = $derived(createTranslator(language));
   const fmt = (value: number) => bytes(value, language);
   let page = $state<Page>('overview');
@@ -39,6 +51,9 @@
   let folders = $state<FolderScan | null>(null);
   let registry = $state<RegistryScan | null>(null);
   let services = $state<ServiceItem[]>([]);
+  let gaming = $state<GameStatus | null>(null);
+  let gameServices = $state<string[]>([]);
+  let gameProcesses = $state<string[]>([]);
   let processes = $state<ProcessItem[]>([]);
   let history = $state<HistoryItem[]>([]);
   let selectedCategories = $state<string[]>([]);
@@ -50,6 +65,12 @@
   let result = $state<ActionResult | null>(null);
   let search = $state('');
   let folderSearch = $state('');
+  let folderPath = $state('');
+  let folderScope = $state<'all' | 'selected'>('all');
+  let folderScanning = $state(false);
+  let folderStop = $state(false);
+  let folderPage = $state(0);
+  const folderPageSize = 100;
   let profile = $state('');
   let resultKind = $state('');
   const desktop = window.desktop;
@@ -73,19 +94,23 @@
       f.path.toLowerCase().includes(folderSearch.toLowerCase()),
     ),
   );
-  function preferences() {
-    applyPreferences(theme, language);
-  }
-  function setTheme(next: Theme) {
-    theme = next;
-    preferences();
-  }
+  const folderPages = $derived(Math.max(1, Math.ceil(visibleFolders.length / folderPageSize)));
+  const currentFolderPage = $derived(Math.min(folderPage, folderPages - 1));
+  const pageFolders = $derived(
+    visibleFolders.slice(
+      currentFolderPage * folderPageSize,
+      (currentFolderPage + 1) * folderPageSize,
+    ),
+  );
+  $effect(() => {
+    applyPreferences('dark', language);
+  });
   async function request<M extends Method>(
     method: M,
     args: RequestMap[M],
   ): Promise<ResponseMap[M]> {
     if (!desktop) throw new Error(t('previewNote'));
-    return desktop.request(method, args);
+    return desktop.request(method, $state.snapshot(args) as RequestMap[M]);
   }
   async function task(action: () => Promise<void>) {
     if (busy) return;
@@ -102,6 +127,7 @@
   }
   async function refreshSystem() {
     system = await request('system', {});
+    gaming = await request('gaming.status', {});
   }
   async function navigate(next: Page) {
     if (busy) return;
@@ -109,6 +135,13 @@
     error = '';
     result = null;
     if (!desktop) return;
+    if (next === 'gaming')
+      await task(async () => {
+        gaming = await request('gaming.status', {});
+        processes = await request('processes.list', {});
+        gameServices = [];
+        gameProcesses = [];
+      });
     if (next === 'services')
       await task(async () => {
         services = await request('services.list', {});
@@ -137,13 +170,37 @@
       selectedEntries = [];
     });
   }
-  async function scanFolders(continuation = false) {
+  async function chooseFolder() {
     await task(async () => {
-      folders =
-        continuation && folders
-          ? await request('folders.continue', { scanId: folders.id })
-          : await request('folders.scan', {});
-      if (!continuation) selectedFolders = [];
+      const chosen = await request('folders.choose', {});
+      if (chosen) {
+        folderPath = chosen;
+        folderScope = 'selected';
+        folders = null;
+        selectedFolders = [];
+      }
+    });
+  }
+  async function scanFolders() {
+    await task(async () => {
+      folderScanning = true;
+      folderStop = false;
+      folders = null;
+      selectedFolders = [];
+      folderPage = 0;
+      try {
+        let current: FolderScan = await request('folders.scan', { scope: folderScope });
+        folders = current;
+        while (!current.complete && !folderStop) {
+          const batch: FolderScan = await request('folders.continue', { scanId: current.id });
+          current = { ...batch, entries: [...current.entries, ...batch.entries] };
+          folders = current;
+        }
+        if (folderStop && !current.complete)
+          folders = await request('folders.cancel', { scanId: current.id });
+      } finally {
+        folderScanning = false;
+      }
     });
   }
   async function applyCleanup() {
@@ -163,7 +220,10 @@
     if (!folders) return;
     await task(async () => {
       resultKind = 'folders';
-      result = await request('folders.apply', { scanId: folders!.id, entryIds: selectedFolders });
+      result = await request('folders.apply', {
+        scanId: folders!.id,
+        entryIds: selectedFolders.length === folders!.entries.length ? 'all' : selectedFolders,
+      });
       folders = null;
       selectedFolders = [];
     });
@@ -172,7 +232,13 @@
     if (!registry) return;
     await task(async () => {
       resultKind = 'registry';
-      result = await request('registry.apply', { scanId: registry!.id, entryIds: selectedEntries });
+      result = await request('registry.apply', {
+        scanId: registry!.id,
+        entryIds:
+          selectedEntries.length === registry!.entries.filter((e) => e.canChange).length
+            ? 'all'
+            : selectedEntries,
+      });
       registry = null;
       selectedEntries = [];
     });
@@ -208,6 +274,27 @@
       resultKind = 'restore';
       result = await request('history.restore', { id });
       history = await request('history.list', {});
+      gaming = await request('gaming.status', {});
+    });
+  }
+  async function gameAction(stop = false) {
+    await task(async () => {
+      resultKind = 'gaming';
+      try {
+        result = stop
+          ? await request('gaming.stop', {})
+          : await request('gaming.start', {
+              serviceIds: gameServices,
+              processes: processes
+                .filter((p) => gameProcesses.includes(String(p.id)))
+                .map((p) => ({ id: p.id, startTime: p.startTime })),
+            });
+      } finally {
+        gaming = await request('gaming.status', {});
+        processes = await request('processes.list', {});
+        gameServices = [];
+        gameProcesses = [];
+      }
     });
   }
   function reason(key: string, text: string) {
@@ -258,7 +345,7 @@
         <Icon name="shield" size={20} /><strong>{t('local')}</strong>
         <p>{t('private')}</p>
       </div>
-      <div class="version"><span class="status-dot"></span>X SpeedUp <span>v0.3.1</span></div>
+      <div class="version"><span class="status-dot"></span>X SpeedUp <span>v0.4.0</span></div>
     </div>
   </aside>
   <div class="workspace">
@@ -269,28 +356,22 @@
           ><span class:offline={!system} class="status-dot"></span>{t(
             system ? 'connected' : desktop ? 'connecting' : 'preview',
           )}</span
-        ><select
-          class="language-select"
-          aria-label={t('language')}
-          bind:value={language}
-          onchange={preferences}
+        ><select class="language-select" aria-label={t('language')} bind:value={language}
           >{#each locales as locale, index}<option value={locale}>{localeNames[index]}</option
             >{/each}</select
         >
-        <div class="theme-switch">
-          <button
-            aria-label={t('light')}
-            aria-pressed={theme === 'light'}
-            onclick={() => setTheme('light')}><Icon name="sun" size={17} /></button
-          ><button
-            aria-label={t('dark')}
-            aria-pressed={theme === 'dark'}
-            onclick={() => setTheme('dark')}><Icon name="moon" size={17} /></button
-          >
-        </div>
       </div>
     </header>
-    <main>
+    <main
+      class:with-actions={[
+        'cleanup',
+        'folders',
+        'registry',
+        'services',
+        'gaming',
+        'stress',
+      ].includes(page)}
+    >
       <div class="page-heading">
         <div>
           <span class="eyebrow">X SPEEDUP / {t(page)}</span>
@@ -303,6 +384,13 @@
       {#if !desktop}<div class="notice">
           <Icon name="info" />
           <p>{t('previewNote')}</p>
+        </div>{/if}
+      {#if gaming?.sessionId && page !== 'gaming'}<div class="notice game-active">
+          <Icon name="activity" /><strong>{t('gameActive')}</strong><button
+            class="secondary"
+            disabled={busy}
+            onclick={() => navigate('gaming')}>{t('gaming')}</button
+          >
         </div>{/if}
       {#if error}<div class="notice error" role="alert">
           <Icon name="info" />
@@ -346,13 +434,7 @@
             ><span class="hero-footnote"><Icon name="shield" size={13} />{t('readOnly')}</span>
           </div>
           <div class="hero-visual" aria-hidden="true">
-            <img
-              class="hero-art"
-              src="./images/speedup-glass.png"
-              alt=""
-              width="320"
-              height="320"
-            />
+            <img class="hero-art" src="./images/app-icon.png" alt="" width="320" height="320" />
           </div>
         </section>
         <div class="section-heading">
@@ -424,6 +506,113 @@
             >{system?.machine ?? 'X SpeedUp'}</span
           >
         </footer>
+      {:else if page === 'stress'}
+        <StressBench {t} onbusy={(value) => (busy = value)} />
+      {:else if page === 'gaming'}
+        <div class="notice">
+          <ArtIcon name="bolt" size={32} />
+          <p>{t('gameNote')}</p>
+        </div>
+        <section class="game-summary panel">
+          <div>
+            <span class="eyebrow">{t('balanced')}</span>
+            <h2>{t(gaming?.sessionId ? 'gameActive' : 'gameReady')}</h2>
+            <p>
+              {t('gameWindows')}:
+              <strong
+                >{t(
+                  gaming?.windowsMode === 1
+                    ? 'enabled'
+                    : gaming?.windowsMode === 0
+                      ? 'disabled'
+                      : 'unknown',
+                )}</strong
+              >
+            </p>
+          </div>
+          <button
+            class="secondary"
+            disabled={busy || !desktop}
+            onclick={() =>
+              task(async () => {
+                await request('gaming.settings', {});
+              })}>{t('windowsSettings')}</button
+          >
+          {#if gaming && !gaming.settingAvailable}<p class="page-note">
+              {t('gameUnavailable')}
+            </p>{/if}
+        </section>
+        <div class="section-heading">
+          <h2>{t('gameServices')}</h2>
+          <button class="text-button" disabled={busy} onclick={() => navigate('gaming')}
+            >{t('refresh')}</button
+          >
+        </div>
+        <SelectAll
+          ids={(gaming?.services ?? []).filter((s) => s.canStop).map((s) => s.id)}
+          bind:selected={gameServices}
+          disabled={busy || !!gaming?.sessionId}
+          label={t('selectAll')}
+        />
+        <div class="panel item-list">
+          {#each gaming?.services ?? [] as service}<label class="select-row">
+              <input
+                type="checkbox"
+                bind:group={gameServices}
+                value={service.id}
+                disabled={busy || !!gaming?.sessionId || !service.canStop}
+              />
+              <span class="row-copy"
+                ><strong>{service.id}</strong><span>{t(`impact.${service.id}`)}</span><small
+                  >{t(
+                    service.state === 4
+                      ? 'running'
+                      : service.state === 1
+                        ? 'stopped'
+                        : 'unavailable',
+                  )}{#if !system?.isAdmin}
+                    · {t('requiresAdmin')}{/if}</small
+                ></span
+              >
+            </label>{/each}
+        </div>
+        <div class="section-heading">
+          <h2>{t('gameApps')}</h2>
+          <span>{t('gameAppsNote')}</span>
+        </div>
+        <SelectAll
+          ids={processes.map((p) => String(p.id))}
+          bind:selected={gameProcesses}
+          disabled={busy || !!gaming?.sessionId}
+          label={t('selectAll')}
+        />
+        <div class="panel item-list">
+          {#each processes as process}<label class="select-row">
+              <input
+                type="checkbox"
+                bind:group={gameProcesses}
+                value={String(process.id)}
+                disabled={busy || !!gaming?.sessionId}
+              />
+              <span class="row-copy"
+                ><strong>{process.name}</strong><small>{process.title}</small></span
+              ><span>{fmt(process.memory)}</span>
+            </label>{:else}<div class="empty">{t('nothing')}</div>{/each}
+        </div>
+        <div class="action-bar">
+          <span>{t('selected')}: <strong>{gameServices.length + gameProcesses.length}</strong></span
+          >
+          {#if gaming?.sessionId}<button
+              class="primary"
+              disabled={busy}
+              onclick={() => gameAction(true)}>{t('gameStop')}</button
+            >
+          {:else}<button
+              class="primary"
+              disabled={busy || !desktop || !gaming?.settingAvailable}
+              onclick={() => gameAction()}>{t('gameStart')}</button
+            >{/if}
+        </div>
       {:else if page === 'cleanup'}
         <div class="notice">
           <Icon name="info" />
@@ -444,7 +633,13 @@
             <Icon name="info" />
             <p>{t('partial')}</p>
           </div>{/if}
-        {#if scan}<div class="panel item-list">
+        {#if scan}<SelectAll
+            ids={scan.categories.filter((c) => c.files > 0).map((c) => c.id)}
+            bind:selected={selectedCategories}
+            disabled={busy}
+            label={t('selectAll')}
+          />
+          <div class="panel item-list">
             {#each scan.categories as category}<div class="cleanup-row">
                 <label class="select-row"
                   ><input
@@ -478,6 +673,29 @@
           <Icon name="info" />
           <p>{t('folderNote')}</p>
         </div>
+        <div class="folder-scope panel">
+          <label
+            >{t('scanScope')}<select
+              aria-label={t('scanScope')}
+              bind:value={folderScope}
+              disabled={busy}
+              onchange={() => {
+                folders = null;
+                selectedFolders = [];
+              }}
+            >
+              <option value="all">{t('allDrives')}</option><option value="selected"
+                >{t('chosenFolder')}</option
+              >
+            </select></label
+          >
+          <button class="secondary" disabled={busy || !desktop} onclick={chooseFolder}
+            ><Icon name="folder" size={17} />{t('chooseFolder')}</button
+          >
+          <p class="mono">
+            {folderScope === 'all' ? t('allDrives') : folderPath || t('chooseFolder')}
+          </p>
+        </div>
         <section class="summary-panel panel">
           <span class="large-icon"><Icon name="folder" size={30} /></span>
           <div>
@@ -487,22 +705,23 @@
                 {t('searched')}: {folders.visited} · {t('skipped')}: {folders.skipped}
               </p>{/if}
           </div>
-          <button class="primary" disabled={busy || !desktop} onclick={() => scanFolders()}
-            >{t('scan')}</button
+          <button
+            class="primary"
+            disabled={busy || !desktop || (folderScope === 'selected' && !folderPath)}
+            onclick={() => scanFolders()}>{t('scan')}</button
           >
         </section>
         {#if folders}<div class="notice">
             <Icon name={folders.complete ? 'check' : 'info'} />
             <div>
-              <strong>{t(folders.complete ? 'complete' : 'partial')}</strong>
+              <strong
+                >{t(
+                  folders.complete ? 'complete' : folderScanning ? 'scanning' : 'scanStopped',
+                )}</strong
+              >
               <p class="mono">{folders.roots.join(' · ')}</p>
-              {#if !folders.complete && !folders.canContinue}<p>{t('folderLimit')}</p>{/if}
+              <p>{t('scanExclusions')}</p>
             </div>
-            {#if folders.canContinue}<button
-                class="secondary"
-                disabled={busy}
-                onclick={() => scanFolders(true)}>{t('continue')}</button
-              >{/if}
           </div>
           <div class="section-heading">
             <label class="search-field"
@@ -511,28 +730,52 @@
                 placeholder={t('filter')}
                 bind:value={folderSearch}
               /></label
-            ><span>{t('selectionLimit')}</span>
+            ><span>{visibleFolders.length} {t('entries')}</span>
           </div>
+          <SelectAll
+            ids={visibleFolders.map((f) => f.id)}
+            bind:selected={selectedFolders}
+            disabled={busy || !folders.complete}
+            label={t(folderSearch ? 'selectFiltered' : 'selectAll')}
+          />
           {#if visibleFolders.length}<div class="panel item-list folder-list">
-              {#each visibleFolders as folder}<label class="select-row"
+              {#each pageFolders as folder}<label class="select-row"
                   ><input
                     type="checkbox"
                     bind:group={selectedFolders}
                     value={folder.id}
-                    disabled={busy ||
-                      (selectedFolders.length >= 256 && !selectedFolders.includes(folder.id))}
+                    disabled={busy || !folders.complete}
                   /><span class="row-copy"><strong class="mono">{folder.path}</strong></span></label
                 >{/each}
             </div>{:else}<div class="empty panel">
               <Icon name="folder" size={40} />
               <h3>{t('nothing')}</h3>
             </div>{/if}
+          <div class="pagination">
+            <button
+              class="secondary"
+              disabled={currentFolderPage === 0}
+              onclick={() => (folderPage = currentFolderPage - 1)}>{t('previous')}</button
+            >
+            <span>{currentFolderPage + 1} / {folderPages}</span>
+            <button
+              class="secondary"
+              disabled={currentFolderPage + 1 >= folderPages}
+              onclick={() => (folderPage = currentFolderPage + 1)}>{t('next')}</button
+            >
+          </div>
           <div class="action-bar">
             <span>{t('selected')}: <strong>{selectedFolders.length}</strong></span><button
               class="primary"
-              disabled={busy || !selectedFolders.length}
+              disabled={busy || !folders.complete || !selectedFolders.length}
               onclick={applyFolders}>{t('deleteFolders')}</button
             >
+            {#if folderScanning}<button
+                class="secondary"
+                disabled={folderStop}
+                onclick={() => (folderStop = true)}
+                >{t(folderStop ? 'stopping' : 'stopScan')}</button
+              >{/if}
           </div>
           <p class="page-note">{t('folderDeleteNote')}</p>{/if}
       {:else if page === 'registry'}
@@ -558,15 +801,19 @@
                 {warning}
               </p>{/each}
           </details>{/if}
-        {#if registry?.entries.length}<div class="panel item-list">
+        {#if registry?.entries.length}<SelectAll
+            ids={registry.entries.filter((e) => e.canChange).map((e) => e.id)}
+            bind:selected={selectedEntries}
+            disabled={busy}
+            label={t('selectAll')}
+          />
+          <div class="panel item-list">
             {#each registry.entries as entry}<label class="select-row registry-row"
                 ><input
                   type="checkbox"
                   bind:group={selectedEntries}
                   value={entry.id}
-                  disabled={busy ||
-                    !entry.canChange ||
-                    (selectedEntries.length >= 256 && !selectedEntries.includes(entry.id))}
+                  disabled={busy || !entry.canChange}
                 /><span class="row-copy"
                   ><strong>{entry.name}</strong><span>{reason(entry.key, entry.reason)}</span><small
                     class="mono">{entry.key}</small
@@ -603,6 +850,13 @@
               ><Icon name="sliders" /><strong>{t(id)}</strong></button
             >{/each}
         </div>
+        <SelectAll
+          ids={services.filter((s) => s.canChange).map((s) => s.id)}
+          bind:selected={selectedServices}
+          disabled={busy}
+          label={t('selectAll')}
+          onchange={() => (profile = '')}
+        />
         <div class="panel item-list">
           {#each services as service}<label class="select-row service-row"
               ><input

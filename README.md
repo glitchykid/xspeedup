@@ -2,29 +2,31 @@
 
 A local Windows maintenance application built with Electron, Svelte, TypeScript and a C#/.NET agent. Inspect your computer, clean old temporary files, review application registry leftovers, find empty folders, manage optional services, and release an application's working set.
 
-**Version 0.3.1 · Windows 10/11 x64.** [Download the installer from GitHub Releases](https://github.com/glitchykid/xspeedup/releases). The installer includes the .NET runtime; end users do not need Node.js or .NET installed separately. Installers are currently unsigned.
+**Version 0.4.0 · Windows 10/11 x64.** [Download the installer from GitHub Releases](https://github.com/glitchykid/xspeedup/releases). The installer includes the .NET runtime; end users do not need Node.js or .NET installed separately. Installers are currently unsigned.
 
 ## Interface and languages
 
-The Glass Morphism interface uses translucent surfaces, soft depth, original generated artwork, and generated application/navigation icons. Light and dark themes follow the system on first launch and remember an explicit selection. Active navigation colors stay selected when hovered.
+The compact, dark minimalist interface uses Gunmetal (#2A3439) surfaces, quiet sage accents and original generated icons. Flat backgrounds, subtle borders and restrained contrast keep the tools readable without neon or glass effects. Previous light preferences migrate to dark. Active navigation colors stay selected when hovered. Lists have a master checkbox with mixed-state feedback; main action docks stay visible while scrolling.
 
-The language selector supports **Russian, English, Ukrainian, Korean, Japanese and Simplified Chinese**. It initially follows a supported system language and otherwise uses English. Theme/language changes preserve scans and selections; both preferences are stored locally. Core screens, action explanations and native confirmation dialogs are translated. Windows diagnostic messages, registry value names, executable titles and historical diagnostic records retain their original text. These are available under **Technical details**, rather than being rewritten during recovery.
+The language selector supports **Russian, English, Ukrainian, Korean, Japanese and Simplified Chinese**. It initially follows a supported system language and otherwise uses English. Language changes preserve scans and selections and are stored locally. Core screens, action explanations and native confirmation dialogs are translated. Windows diagnostic messages, registry value names, executable titles and historical diagnostic records retain their original text. These are available under **Technical details**, rather than being rewritten during recovery.
 
 The minimum window size is 1020 × 720. The interface respects reduced-motion and reduced-transparency preferences. Generated asset provenance and prompts are in [Design assets](docs/DESIGN_ASSETS.md).
 
 ## Maintenance tools
 
-| Tool          | Scope                                                                                                       | Recovery                                           |
-| ------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Overview      | Actual system drive space, available physical memory, logical CPUs and uptime                               | Read-only                                          |
-| File cleanup  | Current user's Temp and DirectX shader cache older than 7 days; CrashDumps older than 14 days               | Permanent deletion                                 |
-| Empty folders | Available fixed and removable local drives, with protected directory exclusions                             | Permanent deletion of empty leaves only            |
-| Registry      | Stale/empty Run and RunOnce values, stale App Paths, qualifying Uninstall leftovers, empty application keys | Typed value/key snapshots before changes           |
-| Services      | Six optional services in explicit profiles, with visible impact descriptions                                | Original startup modes saved                       |
-| Apps & memory | Eligible visible apps in the current session; normal close requests or working-set trimming                 | No process termination; memory may be loaded again |
-| History       | Local operation journal and registry/service restoration                                                    | Conflicting current settings are preserved         |
+| Tool           | Scope                                                                                                       | Recovery                                           |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Overview       | Actual system drive space, available physical memory, logical CPUs and uptime                               | Read-only                                          |
+| File cleanup   | Current user's Temp and DirectX shader cache older than 7 days; CrashDumps older than 14 days               | Permanent deletion                                 |
+| Empty folders  | Available fixed and removable local drives, with protected directory exclusions                             | Permanent deletion of empty leaves only            |
+| Registry       | Stale/empty Run and RunOnce values, stale App Paths, qualifying Uninstall leftovers, empty application keys | Typed value/key snapshots before changes           |
+| Services       | Six optional services in explicit profiles, with visible impact descriptions                                | Original startup modes saved                       |
+| Apps & memory  | Eligible visible apps in the current session; normal close requests or working-set trimming                 | No process termination; memory may be loaded again |
+| Game Mode      | Windows Game Mode, selected optional services and visible applications                                      | Previous setting and stopped services restored     |
+| Tests & tuning | Custom GPU graphics/verification, optional CPU/RAM load, bounded NVIDIA clock scan                          | Original offsets restored after the scan           |
+| History        | Local operation journal and registry/service restoration                                                    | Conflicting current settings are preserved         |
 
-Nothing is optimized automatically. Every mutation requires selection and a native confirmation. There is no telemetry, arbitrary shell command API, or promise of a particular performance gain.
+Maintenance starts only through explicit user actions. A native confirmation authorizes the selected operation or bounded automatic tuning session; clock recovery does not wait for another confirmation. There is no telemetry, arbitrary shell command API, or promise of a particular performance gain.
 
 ### Expanded registry cleanup
 
@@ -41,7 +43,9 @@ HKLM changes require administrator rights; inspection uses read-only handles. Sn
 
 ### Empty folders on all local drives
 
-Start a scan in **Empty folders**, then use **Continue scan** for remaining directories. Each scan slice is bounded to keep the interface responsive; results accumulate up to 5,000 entries. Select up to 256 paths per operation. Scanning never deletes anything.
+Choose a folder with the native picker, or select all available local drives. Short scan slices continue automatically until traversal finishes or you stop it. There is no 5,000-result or depth-128 cutoff. Inaccessible/protected paths are counted as skipped; completion means every permitted path was considered. Deletion stays disabled for incomplete scans.
+
+Results are paginated in groups of 100. The master checkbox covers every matching result across pages, preserving choices outside a filter. Selecting the entire scan uses a compact bulk request; explicit partial selections accept up to 100,000 IDs. The selected root is never a deletion candidate. Scanning never deletes anything.
 
 System directories, Program Files, ProgramData, the current user's AppData, reparse points/junctions, development metadata such as `.git` and `node_modules`, and protected profile roots are excluded. Network drives are not traversed. A folder can be useful even when empty: inspect the results before confirming deletion.
 
@@ -50,6 +54,14 @@ The agent rechecks the path, volume, directory identity, creation time and empty
 ### Memory release
 
 Use **Release memory** beside an eligible application in **Apps & memory**. The overview's memory shortcut opens that list. The app requests Windows `EmptyWorkingSet` for the selected process, identified by its PID and start time, without closing it. It reports the measured working-set reduction, **not** a guaranteed increase in system-wide free memory. Pages can be loaded again and subsequent access can be slower. This does not fix memory leaks or clear the system standby cache.
+
+## Game Mode and hardware tests
+
+The balanced Game Mode enables Windows Game Mode and can temporarily stop **DiagTrack, MapsBroker and Fax** if selected and available. It sends normal close requests only to selected visible applications. Finishing the session restores the previous Windows setting and starts services stopped by that session. Incomplete restoration can be retried from History. Power plans, security services, timer settings and service startup modes are unchanged; closed applications are not relaunched.
+
+**Tests & tuning** discovers driver capabilities on the current machine. It includes an original WebGL 2 scene with 2,359,296 submitted triangles per heavy frame, procedural shading, GPU integer readback checks, frame-time statistics, and optional bounded CPU/RAM worker tests. Standalone tests do not change clocks.
+
+Experimental automatic tuning currently supports **one NVIDIA GPU with usable NVML clock-offset controls and temperature readings**, with administrator rights. It tests small core/VRAM increments within driver bounds, records passed candidates, and restores original offsets at the end. An independent recovery process monitors temperature and a heartbeat. CPU multipliers, system RAM timings and non-NVIDIA tuning adapters are **not implemented**; the UI says so. Capability detection does not make unsupported hardware writable. See [hardware testing and tuning](docs/TUNING.md) for exact limits and recovery behavior.
 
 ## Build and run
 
@@ -66,7 +78,7 @@ npm start           # Production app
 npm run package -- --publish never
 ```
 
-Installer output: `release/X-SpeedUp-Setup-0.3.1.exe`. The unpacked application is in `release/win-unpacked/`. The same filename is used in GitHub downloads and `SHA256SUMS.txt`. Packaging automatically converts the generated PNG application icon to Windows icon resources.
+Installer output: `release/X-SpeedUp-Setup-0.4.0.exe`. The unpacked application is in `release/win-unpacked/`. The same filename is used in GitHub downloads and `SHA256SUMS.txt`. Packaging automatically converts the generated PNG application icon to Windows icon resources.
 
 `npm run dev:web` provides a labeled browser-only preview, with no simulated Windows data or maintenance operations.
 
@@ -81,9 +93,9 @@ npm run test:desktop
 npm run test:desktop -- --packaged
 ```
 
-Native tests use disposable filesystem fixtures and in-memory registry/service/process adapters for mutations. A read-only machine-registry check catches access regressions. Desktop tests inspect Windows without deleting files, changing live registry/services, trimming real applications or closing them. They cover seven screens, both themes, all six locales, active navigation hover, selection preservation, preference persistence, the minimum window size, and IPC isolation. Prior preferences are restored when tests finish.
+Native tests use disposable filesystem fixtures and in-memory registry/service/process adapters for mutations. A read-only machine-registry check catches access regressions. Desktop tests inspect Windows without deleting files, changing live registry/services, trimming real applications or closing them. They cover nine screens, dark-only migration, all six locales, active navigation hover, bulk/filter selection, 5,103 empty folders, fixed action docks, preference persistence, the minimum window size, IPC isolation and a three-second low-load GPU render/readback test. Prior preferences are restored when tests finish.
 
-Real registry transaction writes/restoration, administrative service changes and OS working-set trimming still require acceptance testing in a disposable Windows VM. Installation/uninstallation are not performed on the development machine. See [verification](docs/VERIFICATION.md).
+Real registry transaction writes/restoration, administrative service changes and OS working-set trimming still require acceptance testing in a disposable Windows VM. Real GPU clock writes and full-load stability require dedicated supported hardware; development verification only reads NVML capabilities. Installation/uninstallation are not performed on the development machine. See [verification](docs/VERIFICATION.md).
 
 ## Release workflow
 

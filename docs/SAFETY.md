@@ -26,9 +26,9 @@ Supported snapshot types are string, expandable string, DWORD, QWORD, binary, mu
 
 ## Empty folders
 
-This separate tool scans all available fixed/removable local drives with incremental continuation (8 seconds or 20,000 traversal steps per slice, 5,000 accumulated candidates, maximum depth 128). Results explicitly show completion or limits and skip counts. Network drives, inaccessible paths, protected system/application trees, the current user's AppData, known profile roots, reparse points, `.git`, `.svn`, `.hg` and `node_modules` are excluded. Protected profile roots can be traversed but never removed; protected trees are not traversed.
+This tool scans a native-picker-selected folder or all available fixed/removable local drives. Slices run for up to two seconds or 10,000 traversal steps and continue automatically. There is no result/depth cutoff. Completion is reported only after permitted traversal is exhausted; inaccessible paths are counted as skipped. Canceling leaves an incomplete, nondeletable scan. Network drives, inaccessible paths, protected system/application trees, the current user's AppData, known profile roots, reparse points, `.git`, `.svn`, `.hg` and `node_modules` are excluded. Protected profile roots can be traversed but never removed; protected trees are not traversed.
 
-Selections are bounded to 256 manifest IDs. Before deletion the agent verifies containment, ancestor links, final path, volume/file identity, creation time and directory attributes. Windows refuses deletion if the directory has become nonempty; no recursive delete is issued. Directory handles used for traversal are closed first. Parent folders are not automatically removed. Deletion bypasses the Recycle Bin and has no recovery backup. A scan is not proof that an empty folder is unnecessary.
+Complete selection uses an agent-owned manifest and the literal `all`; partial selections accept up to 100,000 manifest IDs. The selected root and drive roots cannot be deleted. Before deletion the agent verifies containment, ancestor links, final path, volume/file identity, creation time and directory attributes. Windows refuses deletion if the directory has become nonempty; no recursive delete is issued. Directory handles used for traversal are closed first. Parent folders are not automatically removed. Deletion bypasses the Recycle Bin and has no recovery backup. A scan is not proof that an empty folder is unnecessary.
 
 ## Services
 
@@ -45,7 +45,19 @@ There is no universally unnecessary service. Profiles are contextual selections 
 
 Service changes and restoration require administrator rights. This release runs the whole desktop application at the user's chosen privilege level; a separately elevated, signed broker is a possible future hardening step, not an implemented feature. Do not load remote content or untrusted extensions into the application.
 
-## Applications
+## Balanced Game Mode
+
+Game Mode is a separate session from permanent service-startup profiles. It snapshots the current `HKCU\Software\Microsoft\GameBar\AutoGameModeEnabled` value (absent, 0 or 1), uses transactional compare/exchange, and enables it. An unavailable or malformed setting disables activation and offers the Windows Settings page. The only stoppable services are DiagTrack, MapsBroker and Fax, explicitly selected and running at activation. SCM rejects dependent-service conflicts; the app does not stop dependencies. Service startup modes and power plans are unchanged.
+
+The journal is saved before each transition. Ending the session restores the prior Game Mode value and restarts services stopped by the session. Save prompts belong to the selected applications; closure is not forced and closed apps are not automatically reopened. A failed restore remains available in History, including after restart. A service externally stopped during the session may be restarted because the app cannot establish ownership of every external transition. FPS improvement is not guaranteed.
+
+References: [Windows Game Mode setting](https://learn.microsoft.com/en-us/windows/apps/develop/settings/settings-windows-11), [Windows Settings URI](https://learn.microsoft.com/en-us/windows/apps/develop/launch/launch-settings), [SCM stop semantics](https://learn.microsoft.com/en-us/windows/win32/services/stopping-a-service).
+
+## Hardware tests and tuning
+
+See [TUNING.md](TUNING.md) for detected capabilities, exact increments, independent recovery, load bounds and the unverified live-hardware acceptance scope. Tuning changes clocks only during an explicitly confirmed bounded session and restores original offsets at the end. CPU/system RAM clock controls are unavailable in this release.
+
+## Visible applications
 
 Only accessible applications with top-level windows in the current interactive session are listed. A denylist and Windows-directory exclusion protect core OS and application-host processes. A process ID and creation time are revalidated at action time to avoid acting on a reused PID. The agent sends `CloseMainWindow`; it never kills a process or process tree. A successful result means the close request was sent, not that the application has exited or memory has already been freed. Handle save prompts in that application's window and refresh the list.
 

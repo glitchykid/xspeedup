@@ -1,12 +1,23 @@
 import type { Method, RequestMap } from '../shared/contracts';
 
 const methods = new Set([
+  'tuning.status',
+  'tuning.start',
+  'tuning.heartbeat',
+  'tuning.advance',
+  'tuning.finish',
+  'gaming.status',
+  'gaming.start',
+  'gaming.stop',
+  'gaming.settings',
   'system',
   'cleanup.scan',
   'cleanup.apply',
   'registry.scan',
   'registry.apply',
   'folders.scan',
+  'folders.choose',
+  'folders.cancel',
   'folders.continue',
   'folders.apply',
   'memory.release',
@@ -18,6 +29,9 @@ const methods = new Set([
   'history.restore',
 ]);
 const mutations = new Set<Method>([
+  'tuning.start',
+  'gaming.start',
+  'gaming.stop',
   'folders.apply',
   'memory.release',
   'cleanup.apply',
@@ -36,9 +50,16 @@ export function validateRequest(
     throw new Error('Некорректный запрос.');
   const args = input as Record<string, unknown>;
   const keys: Record<string, string[]> = {
+    'tuning.start': ['deviceId'],
+    'tuning.heartbeat': ['id'],
+    'tuning.advance': ['id'],
+    'tuning.finish': ['id', 'completed'],
+    'gaming.start': ['serviceIds', 'processes'],
     'cleanup.apply': ['scanId', 'categoryIds'],
     'registry.apply': ['scanId', 'entryIds'],
     'folders.continue': ['scanId'],
+    'folders.cancel': ['scanId'],
+    'folders.scan': ['scope'],
     'folders.apply': ['scanId', 'entryIds'],
     'memory.release': ['processId', 'startTime'],
     'services.disable': ['serviceIds'],
@@ -53,14 +74,48 @@ export function validateRequest(
     throw new Error('Некорректные параметры.');
   for (const key of expected) {
     const value = args[key];
-    if (key.endsWith('Ids')) {
+    if (key === 'completed') {
+      if (typeof value !== 'boolean') throw new Error('Некорректный результат тестирования.');
+      continue;
+    }
+    if (key === 'processes') {
       if (
         !Array.isArray(value) ||
-        value.length === 0 ||
-        value.length > 256 ||
+        value.length > 10000 ||
+        value.some(
+          (p) =>
+            !p ||
+            typeof p !== 'object' ||
+            Object.keys(p).length !== 2 ||
+            !Number.isSafeInteger(p.id) ||
+            p.id <= 0 ||
+            typeof p.startTime !== 'string' ||
+            !p.startTime.length ||
+            p.startTime.length > 100,
+        ) ||
+        new Set(value.map((p) => p.id)).size !== value.length
+      )
+        throw new Error('Некорректный список приложений.');
+      continue;
+    }
+    if (key === 'scope') {
+      if (value !== 'all' && value !== 'selected') throw new Error('Некорректная область поиска.');
+      continue;
+    }
+    if (key.endsWith('Ids')) {
+      if (key === 'entryIds' && value === 'all') continue;
+      if (
+        !Array.isArray(value) ||
+        (value.length === 0 && method !== 'gaming.start') ||
+        value.length > (key === 'entryIds' ? 100000 : 256) ||
         value.some((v) => typeof v !== 'string' || !/^[a-zA-Z0-9-]{1,80}$/.test(v))
       )
         throw new Error('Некорректный выбор.');
+      if (
+        method === 'gaming.start' &&
+        (value.length > 3 || value.some((id) => !['DiagTrack', 'MapsBroker', 'Fax'].includes(id)))
+      )
+        throw new Error('Служба не входит в игровой профиль.');
     } else if (key === 'processId') {
       if (!Number.isSafeInteger(value) || (value as number) <= 0)
         throw new Error('Некорректный процесс.');

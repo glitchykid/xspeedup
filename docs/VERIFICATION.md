@@ -1,5 +1,15 @@
 # Verification
 
+## 0.4.0 — 2026-09-28
+
+- Native regression harness: 111 assertions passed. TypeScript suite: 9 tests passed. Coverage includes automatic traversal beyond 5,000 empty folders, selected-root protection, bulk deletion in isolated fixtures, gaming restoration, bounded clock steps, partial driver failure, thermal/heartbeat recovery, idempotent recovery cleanup, external-change preservation and pending recovery beyond the recent-history limit.
+- Svelte diagnostics: 0 errors and 0 warnings; TypeScript and self-contained .NET builds passed.
+- Electron integration covers nine screens, all six locales, migration to the dark-only interface, bulk/filtered selection, 5,103-folder automatic traversal, fixed action docks at the minimum size, active-tab hover, canceled native dialogs, generated icons and renderer isolation.
+- A three-second low-load hardware WebGL 2 render/readback test completed on the GTX 1050 Ti with successful GPU integer probes. No CPU workers or clock writes were used in this desktop check.
+- Read-only NVML inspection detected the GTX 1050 Ti's current core/VRAM offsets and driver ranges. The non-elevated session correctly reports clock writes as unavailable without administrator rights. This is not verification of successful live clock writes.
+
+Live Game Mode registry writes, administrative service stop/restart, working-set trimming and registry transaction restoration still need disposable-VM acceptance. Elevated GPU clock writes, full-load thermal behavior, driver-reset recovery and the actual independent watchdog under GPU failure need dedicated supported hardware. Automated clock mutation/recovery tests use injected adapters. Installation/uninstallation are not performed on the host; installers remain unsigned.
+
 ## 0.3.1 — 2026-09-28
 
 - Retained the process handle before memory eligibility and identity checks, keeping working-set trimming bound to the same kernel process object if its PID is reused.

@@ -24,7 +24,7 @@ public sealed class Journal(string directory)
     }
     public JournalEntry Read(string id) => System.Text.Json.JsonSerializer.Deserialize<JournalEntry>(File.ReadAllText(FileName(id)), Json.Options)
         ?? throw new IOException("Не удалось прочитать резервную копию.");
-    public object[] List()
+    public List<JournalEntry> Entries()
     {
         if (!Directory.Exists(directory)) return [];
         var entries = new List<JournalEntry>();
@@ -33,7 +33,9 @@ public sealed class Journal(string directory)
             try { entries.Add(Read(Path.GetFileNameWithoutExtension(file))); }
             catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or ArgumentException) { }
         }
-        return entries.OrderByDescending(e => e.CreatedAt).Take(100).Select(e => (object)new
-        { e.Id, e.CreatedAt, e.Kind, e.Summary, e.Restored, e.Details, CanRestore = !e.Restored && (e.Backups.Count > 0 || e.RegistryBackups.Count > 0) }).ToArray();
+        return entries;
     }
+    public object[] List() => Entries().OrderByDescending(e => !e.Restored && (e.Game is not null || e.Tuning is not null))
+        .ThenByDescending(e => e.CreatedAt).Take(100).Select(e => (object)new
+        { e.Id, e.CreatedAt, e.Kind, e.Summary, e.Restored, e.Details, CanRestore = !e.Restored && (e.Backups.Count > 0 || e.RegistryBackups.Count > 0 || e.Game is not null || e.Tuning is not null) }).ToArray();
 }

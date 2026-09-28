@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -13,6 +13,7 @@ let busy = false;
 let cleanup: CleanupScan | undefined;
 let registry: RegistryScan | undefined;
 let folders: FolderScan | undefined;
+let selectedFolder: string | undefined;
 const development = !app.isPackaged && process.env.XSPEEDUP_DEV === '1';
 const pagePath = path.join(__dirname, '../dist/index.html');
 const pageUrl = development ? 'http://127.0.0.1:5173/' : pathToFileURL(pagePath).href;
@@ -31,7 +32,7 @@ async function createWindow() {
     minHeight: 720,
     title: 'X SpeedUp',
     icon: path.join(__dirname, '../dist/images/app-icon.png'),
-    backgroundColor: '#eef3fc',
+    backgroundColor: '#1d2428',
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -94,11 +95,54 @@ app
           if (busy) throw new Error('Дождитесь завершения текущей операции.');
           busy = true;
           try {
+            if (request.method === 'gaming.settings') {
+              await shell.openExternal('ms-settings:gaming-gamemode');
+              return { ok: true, data: null };
+            }
+            if (request.method === 'folders.choose') {
+              const choice = await dialog.showOpenDialog(window, {
+                title: t('chooseFolder'),
+                properties: ['openDirectory', 'dontAddToRecent'],
+                defaultPath: selectedFolder,
+              });
+              if (choice.canceled || !choice.filePaths[0]) return { ok: true, data: null };
+              selectedFolder = choice.filePaths[0];
+              return { ok: true, data: selectedFolder };
+            }
             if (isMutation(request.method)) {
               const args = request.args as Record<string, unknown>;
               let description = '';
               let heading = t('confirmTitle');
-              if (request.method === 'cleanup.apply') {
+              if (request.method === 'tuning.start') {
+                const capability = await agent.request('tuning.status', {});
+                const gpu = capability.devices.find((d) => d.id === args.deviceId && d.canTune);
+                if (!gpu) throw new Error('Драйвер не подтвердил возможность подбора частот.');
+                heading = t('autoTune');
+                description = gpu.name + '\n\n' + t('tuneNote');
+              } else if (request.method === 'gaming.start') {
+                const profile =
+                  request.args as import('../shared/contracts').RequestMap['gaming.start'];
+                const apps = await agent.request('processes.list', {});
+                const selected = profile.processes.map((p) =>
+                  apps.find((a) => a.id === p.id && a.startTime === p.startTime),
+                );
+                if (selected.some((p) => !p))
+                  throw new Error('Список приложений изменился. Обновите его.');
+                heading = t('gameStart');
+                description =
+                  t('gameNote') +
+                  '\n\n' +
+                  t('gameWindows') +
+                  '\n\n' +
+                  profile.serviceIds.map((id) => `${id}: ${t(`impact.${id}`)}`).join('\n') +
+                  '\n\n' +
+                  selected.map((p) => `${t('close')}: ${p!.name} (${p!.id})`).join('\n');
+              } else if (request.method === 'gaming.stop') {
+                const status = await agent.request('gaming.status', {});
+                if (!status.sessionId) throw new Error('Игровой режим не активен.');
+                heading = t('gameStop');
+                description = t('gameRestore');
+              } else if (request.method === 'cleanup.apply') {
                 if (!cleanup || cleanup.id !== args.scanId)
                   throw new Error('Сначала выполните анализ файлов.');
                 const ids = args.categoryIds as string[];
@@ -112,9 +156,17 @@ app
               } else if (request.method === 'registry.apply') {
                 if (!registry || registry.id !== args.scanId)
                   throw new Error('Сначала выполните анализ реестра.');
-                const ids = args.entryIds as string[];
-                const selected = registry.entries.filter((e) => ids.includes(e.id));
-                if (selected.length !== new Set(ids).size || selected.some((e) => !e.canChange))
+                const ids =
+                  args.entryIds === 'all'
+                    ? registry.entries.filter((e) => e.canChange).map((e) => e.id)
+                    : (args.entryIds as string[]);
+                const idSet = new Set(ids);
+                const selected = registry.entries.filter((e) => idSet.has(e.id));
+                if (
+                  !selected.length ||
+                  selected.length !== idSet.size ||
+                  selected.some((e) => !e.canChange)
+                )
                   throw new Error('Некорректный выбор или недостаточно прав.');
                 heading = t('backupClean');
                 description =
@@ -140,9 +192,14 @@ app
               } else if (request.method === 'folders.apply') {
                 if (!folders || folders.id !== args.scanId)
                   throw new Error('Сначала выполните поиск папок.');
-                const ids = args.entryIds as string[];
-                const selected = folders.entries.filter((e) => ids.includes(e.id));
-                if (selected.length !== new Set(ids).size)
+                if (!folders.complete) throw new Error('Дождитесь полного сканирования.');
+                const ids =
+                  args.entryIds === 'all'
+                    ? folders.entries.map((e) => e.id)
+                    : (args.entryIds as string[]);
+                const idSet = new Set(ids);
+                const selected = folders.entries.filter((e) => idSet.has(e.id));
+                if (!selected.length || selected.length !== idSet.size)
                   throw new Error('Некорректный выбор папок.');
                 heading = t('deleteFolders');
                 description =
@@ -184,11 +241,22 @@ app
               });
               if (answer.response !== 1) throw new Error(t('canceled'));
             }
-            const data = await agent.request(request.method, request.args);
+            const folderScope =
+              request.method === 'folders.scan' ? (request.args as { scope: string }).scope : null;
+            if (folderScope === 'selected' && !selectedFolder) throw new Error(t('chooseFolder'));
+            const data = await agent.request(
+              request.method,
+              request.args,
+              folderScope === 'selected' ? selectedFolder : undefined,
+            );
             if (request.method === 'cleanup.scan') cleanup = data as CleanupScan;
             if (request.method === 'registry.scan') registry = data as RegistryScan;
-            if (request.method === 'folders.scan' || request.method === 'folders.continue')
+            if (request.method === 'folders.scan' || request.method === 'folders.cancel')
               folders = data as FolderScan;
+            if (request.method === 'folders.continue') {
+              const batch = data as FolderScan;
+              folders = { ...batch, entries: [...(folders?.entries ?? []), ...batch.entries] };
+            }
             if (request.method === 'folders.apply') folders = undefined;
             if (request.method === 'cleanup.apply') cleanup = undefined;
             if (request.method === 'registry.apply') registry = undefined;

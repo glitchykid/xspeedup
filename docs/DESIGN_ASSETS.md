@@ -1,5 +1,7 @@
 # Generated design assets
 
+The current dark minimalist icons and their exact generation/edit prompts are documented in [Design assets for 0.4.0](DESIGN_ASSETS_0.4.0.md). The prompts below describe the original 0.3.0 assets before recoloring and are retained for provenance.
+
 Production PNG assets were generated on 2026-09-28 with the built-in image generation tool, not the API/CLI fallback. They are stored in the repository and packaged locally; the app fetches no remote images. Drafts from earlier design directions are not shipped.
 
 | Asset                                | Role                                          |

@@ -70,7 +70,15 @@ export interface ProcessItem {
 export interface HistoryItem {
   id: string;
   createdAt: string;
-  kind: 'cleanup' | 'registry' | 'registry-v2' | 'services' | 'folders' | 'memory';
+  kind:
+    | 'cleanup'
+    | 'registry'
+    | 'registry-v2'
+    | 'services'
+    | 'folders'
+    | 'memory'
+    | 'gaming'
+    | 'tuning';
   summary: string;
   canRestore: boolean;
   restored: boolean;
@@ -84,14 +92,25 @@ export interface ActionResult {
   details: string[];
 }
 export interface RequestMap {
+  'tuning.status': Record<string, never>;
+  'tuning.start': { deviceId: string };
+  'tuning.heartbeat': { id: string };
+  'tuning.advance': { id: string };
+  'tuning.finish': { id: string; completed: boolean };
+  'gaming.status': Record<string, never>;
+  'gaming.settings': Record<string, never>;
+  'gaming.start': { serviceIds: string[]; processes: { id: number; startTime: string }[] };
+  'gaming.stop': Record<string, never>;
   system: Record<string, never>;
   'cleanup.scan': Record<string, never>;
   'cleanup.apply': { scanId: string; categoryIds: string[] };
   'registry.scan': Record<string, never>;
-  'registry.apply': { scanId: string; entryIds: string[] };
-  'folders.scan': Record<string, never>;
+  'registry.apply': { scanId: string; entryIds: string[] | 'all' };
+  'folders.choose': Record<string, never>;
+  'folders.scan': { scope: 'all' | 'selected' };
   'folders.continue': { scanId: string };
-  'folders.apply': { scanId: string; entryIds: string[] };
+  'folders.cancel': { scanId: string };
+  'folders.apply': { scanId: string; entryIds: string[] | 'all' };
   'memory.release': { processId: number; startTime: string };
   'services.list': Record<string, never>;
   'services.disable': { serviceIds: string[] };
@@ -101,13 +120,24 @@ export interface RequestMap {
   'history.restore': { id: string };
 }
 export interface ResponseMap {
+  'tuning.status': TuningStatus;
+  'tuning.start': TuningState;
+  'tuning.heartbeat': TuningState;
+  'tuning.advance': TuningState;
+  'tuning.finish': ActionResult;
+  'gaming.status': GameStatus;
+  'gaming.settings': null;
+  'gaming.start': ActionResult;
+  'gaming.stop': ActionResult;
   system: SystemInfo;
   'cleanup.scan': CleanupScan;
   'cleanup.apply': ActionResult;
   'registry.scan': RegistryScan;
   'registry.apply': ActionResult;
+  'folders.choose': string | null;
   'folders.scan': FolderScan;
   'folders.continue': FolderScan;
+  'folders.cancel': FolderScan;
   'folders.apply': ActionResult;
   'memory.release': ActionResult;
   'services.list': ServiceItem[];
@@ -116,6 +146,37 @@ export interface ResponseMap {
   'processes.close': ActionResult;
   'history.list': HistoryItem[];
   'history.restore': ActionResult;
+}
+export interface GameStatus {
+  sessionId: string | null;
+  windowsMode: number | null;
+  settingAvailable: boolean;
+  services: { id: string; state: number; canStop: boolean }[];
+}
+export interface GpuCapability {
+  id: string;
+  name: string;
+  temperature: number | null;
+  core: { current: number; minimum: number; maximum: number } | null;
+  memory: { current: number; minimum: number; maximum: number } | null;
+  canTune: boolean;
+  reason: string;
+}
+export interface TuningStatus {
+  devices: GpuCapability[];
+  pending: string[];
+  cpu: string;
+  cpuTuning: boolean;
+  memoryTuning: boolean;
+  reason: string;
+}
+export interface TuningState {
+  id: string;
+  stage: number;
+  core: number;
+  memory: number | null;
+  temperature: number;
+  more: boolean;
 }
 export type Method = keyof RequestMap;
 export interface DesktopApi {

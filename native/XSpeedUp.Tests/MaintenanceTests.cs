@@ -31,6 +31,26 @@ internal static class MaintenanceTests
         reject(() => folders.Apply(scan.Id, [scan.Entries[0].Id]), "Consumed folder scan cannot be replayed");
         var secondScan = folders.Scan();
         check(secondScan.Entries.Any(e => e.Path == Path.GetDirectoryName(nested)), "A later scan discovers a parent that has become empty");
+        using var driveScan = new EmptyFolders([Path.GetPathRoot(folderRoot)!], folderJournal);
+        check(driveScan.CanRemove(empty), "Drive roots with a trailing separator contain ordinary child folders");
+        reject(() => folders.Scan(Path.GetDirectoryName(folderRoot)!), "Selected folders must stay inside allowed local roots");
+        reject(() => folders.Scan(protectedRoot), "Selected protected trees are rejected");
+        var manyRoot = Directory.CreateDirectory(Path.Combine(folderRoot, "many")).FullName;
+        for (int i = 0; i < 5003; i++) Directory.CreateDirectory(Path.Combine(manyRoot, $"empty-{i}"));
+        using var continuous = new EmptyFolders([folderRoot], folderJournal, sliceSteps: 1000);
+        var batch = continuous.Scan(manyRoot);
+        var found = new List<FolderCandidate>(batch.Entries);
+        check(!batch.Complete && batch.CanContinue, "A large folder scan remains resumable instead of reporting early completion");
+        reject(() => continuous.ApplyAll(batch.Id), "Incomplete scans cannot authorize bulk deletion");
+        int rounds = 0;
+        while (!batch.Complete && rounds++ < 50) { batch = continuous.Continue(batch.Id); found.AddRange(batch.Entries); }
+        check(batch.Complete && found.Count == 5003 && found.Select(e => e.Id).Distinct().Count() == 5003, "Delta slices traverse beyond 5000 candidates without loss or duplicates");
+        check(found.All(e => Path.GetDirectoryName(e.Path) == manyRoot), "Selected-folder results never include siblings or the selected root");
+        var allDeleted = continuous.ApplyAll(batch.Id);
+        check(allDeleted.Changed == 5003 && Directory.Exists(manyRoot), "Bulk deletion exceeds 256 entries and preserves the chosen root");
+        batch = continuous.Scan(folderRoot);
+        var canceled = continuous.Cancel(batch.Id);
+        reject(() => continuous.Continue(canceled.Id), "A canceled scan releases traversal and cannot resume silently");
 
         var registryPath = Path.Combine(workspace, "extended-registry-journal");
         var registryJournal = new Journal(registryPath);
@@ -84,6 +104,8 @@ internal static class MaintenanceTests
         reject(() => memoryCleaner.Release(1, "start"), "Ineligible processes cannot be trimmed");
         memory.Eligible = true;
         check(memoryCleaner.Release(1, "start").Bytes == 600 && memory.Trimmed, "Memory result measures working-set reduction without closing the app");
+        GamingTests.Run(workspace, check, reject);
+        TuningTests.Run(workspace, check, reject);
     }
     private sealed class FakeRegistry : IRegistryStore
     {

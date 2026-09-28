@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 — 2026-09-28
+
+- Added master checkboxes, mixed selection states and fixed action docks.
+- Added native folder selection and automatic traversal to completion, removing the 5,000-folder/depth-128 cutoffs; paginated results and bulk deletion use the complete scan manifest.
+- Added balanced Game Mode with Windows Game Mode, explicitly selected optional services/apps, persistent recovery and conflict-aware restoration.
+- Added automatic NVIDIA capability discovery and experimental bounded GPU/VRAM clock testing, original-offset backups and an independent temperature/heartbeat recovery process. CPU/RAM and other GPU tuning adapters remain unavailable.
+- Built an original WebGL 2 workload with animated geometry, procedural shading, integer GPU readback verification, frame-time metrics and optional bounded CPU/RAM worker checks.
+- Reworked the interface into compact dark minimalism with Gunmetal surfaces, restrained accents and new generated icons.
+- Fixed language preference timing and conversion of reactive selections before Electron IPC.
+- Expanded native, IPC and desktop regression coverage for full folder traversal, gaming recovery and clock recovery.
+
 ## 0.3.1 — 2026-09-28
 
 - Retain the selected process handle from eligibility/identity validation through working-set trimming, preventing a PID-reuse race if an application exits during the operation.

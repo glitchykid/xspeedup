@@ -12,7 +12,7 @@ Electron main (validation, trusted native confirmations, serialized operations)
 C# Windows agent (target policy, inspection, file operations, registry, services)
 ```
 
-There is no HTTP backend, background service, arbitrary command execution API, or database. The agent runs only while Electron needs it. OS settings and files are changed solely by explicit maintenance requests; application settings/history and Electron's own browser cache are normal local application data.
+There is no HTTP backend, background service, arbitrary command execution API, or database. The normal agent runs while Electron needs it. An explicitly started tuning session also launches an independent recovery process that exits after restoration or records pending recovery. OS settings and files are changed solely by explicit maintenance requests; application settings/history and Electron's own browser cache are normal local application data.
 
 The first vertical slice is **scan files -> select categories -> native confirmation -> verify current file -> delete -> display result and history**. Registry, service, and application tools reuse the same request/response and confirmation boundary. Domain-specific policy stays in the agent instead of being inferred by the interface.
 
@@ -30,21 +30,27 @@ The first vertical slice is **scan files -> select categories -> native confirma
 
 ## Interface design and preferences
 
-`src/styles.css` defines semantic light/dark Glass Morphism tokens: translucent surfaces, soft shadows, clear borders and readable selected states. Reduced-transparency and forced-color modes have explicit fallbacks. `ArtIcon.svelte` addresses generated navigation icons in a transparent atlas; small action glyphs remain vectors for sharpness.
+`src/styles.css` defines compact, dark minimalist tokens with Gunmetal surfaces, restrained sage accents, clear borders and readable selected states. Reduced-transparency and forced-color modes have explicit fallbacks. `ArtIcon.svelte` addresses generated navigation icons in a transparent atlas; small action glyphs remain vectors for sharpness.
 
-`src/lib/preferences.ts` resolves stored theme and locale preferences before Svelte mounts. Keys are `xspeedup.theme` and `xspeedup.locale`. Storage failures leave session controls usable. `shared/i18n.ts` contains six complete UI/confirmation dictionaries shared by the renderer and Electron. Preload passes the document language separately from operation arguments; Electron validates it against the supported locale list. Locale is a presentation choice and grants no additional authority. Diagnostics retain their original language. Changing preferences does not remount pages or invoke maintenance.
+`src/lib/preferences.ts` resolves the stored locale and migrates previous themes to dark before Svelte mounts. Keys are `xspeedup.theme` and `xspeedup.locale`. Storage failures leave session controls usable. `shared/i18n.ts` contains six complete UI/confirmation dictionaries shared by the renderer and Electron. Preload passes the document language separately from operation arguments; Electron validates it against the supported locale list. Locale is a presentation choice and grants no additional authority. Diagnostics retain their original language. Changing preferences does not remount pages or invoke maintenance.
 
 ## Trust boundary
 
 The renderer uses `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, a restrictive CSP, denied permissions, and blocked navigation/new windows/webviews. Only the app's main frame may invoke the dedicated IPC handler. Renderer-controlled paths and shell commands are not accepted.
 
-The agent accepts fixed operation names and category/service IDs. File, folder and registry changes require an in-memory, single-use scan ID, valid for 15 minutes. Folder continuation retains bounded depth-first enumerators across short scan slices; a new scan or deletion disposes them. The renderer never supplies arbitrary file or registry paths. A crashed/restarted agent invalidates old scans.
+The agent accepts fixed operation names and category/service IDs. File, folder and registry changes require an in-memory, single-use scan ID, valid for 15 minutes. Folder continuation retains bounded depth-first enumerators across short scan slices; a new scan or deletion disposes them. The selected folder comes only from Electron's native picker and is revalidated by the agent. The renderer supplies scope IDs, never arbitrary file or registry paths. Scan slices return deltas, and the interface automatically continues until exhaustion or explicit cancellation. A crashed/restarted agent invalidates old scans.
 
-Electron serializes requests and holds a native confirmation dialog before each mutation. The dialog uses agent-provided records rather than trusting display strings from the renderer. Running windows are kept open during active work. The agent has a two-minute watchdog; an interrupted operation is never automatically retried. Its error instructs the user to inspect history and rescan.
+Electron serializes requests and holds a native confirmation dialog before maintenance or starting a bounded tuning session. Authorized tuning steps and recovery use fixed agent policy without additional dialogs. The dialog uses agent-provided records rather than trusting display strings from the renderer. Running windows are kept open during active work. The agent has a two-minute watchdog; an interrupted operation is never automatically retried. Its error instructs the user to inspect history and rescan.
 
 The stdio executable is an implementation component and does not provide its own graphical confirmation when invoked directly. Its fixed target policies remain enforced. It inherits the launching user's rights; it is not a privilege escalation service.
 
 ## Persistence and recovery
+
+`GameMode` and `IGameEnvironment` isolate reversible Windows Game Mode and temporary service transitions. Only three optional services are eligible. The registry adapter uses transactional compare/exchange, and the journal survives application restarts. App closure uses the existing identity-checked normal-close path.
+
+`AutoTuner` owns a fixed clock-candidate plan, timing limits, thermal limits and recovery policy. `IGpuClocks` abstracts the documented NVML clock-offset adapter for deterministic tests. A second hidden agent process handles `--tuning-watchdog <journal-id>` independently of Electron; a named event verifies readiness before any clock write, and a per-user mutex serializes clock/recovery operations. The renderer can advance an authorized session but cannot supply arbitrary offsets, voltage, power or driver functions. Heartbeats and stage transitions are serialized in the renderer as well.
+
+`StressBench.svelte` owns bounded WebGL resources, animation frames and optional worker lifetimes. The custom geometry/shaders, integer reference function and CPU/RAM worker are small separate modules. Cancellation, context loss, visibility changes and component teardown dispose resources. See [tuning design and limitations](TUNING.md).
 
 Each registry/service operation writes and flushes a journal before a change. Files use a unique temporary name and atomic replacement. `RegistryMaintenance` owns the candidate policy; `WindowsRegistryStore` owns typed snapshots and transactional compare/delete/restore. Original registry value types/data or service startup modes are preserved. `registry-v2` journal entries coexist with legacy `registry` backups. Restores record per-entry progress and preserve conflicts. Recreated keys inherit parent ACLs; custom ACL/security auditing metadata is not captured. No cross-resource atomicity is claimed between the OS transaction and the filesystem journal.
 

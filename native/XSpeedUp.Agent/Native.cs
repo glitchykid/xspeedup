@@ -105,6 +105,12 @@ internal static class Native
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool QueryServiceStatus(IntPtr service, out ServiceStatus status);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ControlService(IntPtr service, uint control, out ServiceStatus status);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool StartService(IntPtr service, uint count, IntPtr arguments);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ChangeServiceConfig(IntPtr service, uint type, uint start, uint error,

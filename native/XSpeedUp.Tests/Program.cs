@@ -12,7 +12,7 @@ int assertions = 0;
 void Check(bool value, string message) { if (!value) throw new Exception(message); assertions++; Console.WriteLine("PASS " + message); }
 void Reject(Action action, string message)
 {
-    try { action(); } catch (Exception ex) when (ex is ArgumentException or InvalidOperationException) { assertions++; Console.WriteLine("PASS " + message); return; }
+    try { action(); } catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UnauthorizedAccessException or IOException) { assertions++; Console.WriteLine("PASS " + message); return; }
     throw new Exception(message);
 }
 string Fixture(string name, bool old = true)

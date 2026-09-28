@@ -103,6 +103,26 @@ public sealed class WindowsRegistryStore : IRegistryStore
         using var key = OpenChecked(address);
         return key is null ? null : Snapshot(key);
     }
+    private static readonly RegistryAddress GameAddress = new("HKCU", Environment.Is64BitOperatingSystem ? 64 : 32, @"Software\Microsoft\GameBar");
+    private static int? Mode(RegistrySnapshot snapshot)
+    {
+        var value = snapshot.Values.FirstOrDefault(v => v.Name == "AutoGameModeEnabled");
+        if (value is null) return null;
+        if (value.Kind == 4 && value.Data is "0" or "1") return int.Parse(value.Data, CultureInfo.InvariantCulture);
+        throw new IOException("Unsupported Windows Game Mode value.");
+    }
+    public int? ReadGameMode() => Mode(Read(GameAddress) ?? throw new IOException("Open Game Mode in Windows Settings first."));
+    public bool ExchangeGameMode(int? expected, int? replacement)
+    {
+        if (expected is not (null or 0 or 1) || replacement is not (null or 0 or 1)) throw new ArgumentException("Invalid Game Mode value.");
+        using var transaction = Transaction();
+        using var key = OpenTransacted(GameAddress, transaction) ?? throw new IOException("Windows Game Mode setting is unavailable.");
+        if (Mode(Snapshot(key)) != expected) return false;
+        if (replacement is int value) key.SetValue("AutoGameModeEnabled", value, RegistryValueKind.DWord);
+        else key.DeleteValue("AutoGameModeEnabled", false);
+        Commit(transaction);
+        return true;
+    }
     private static SafeFileHandle Transaction()
     {
         var transaction = CreateTransaction(IntPtr.Zero, IntPtr.Zero, 0, 0, 0, 0, null);
