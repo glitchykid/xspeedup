@@ -28,6 +28,12 @@ The first vertical slice is **scan files -> select categories -> native confirma
 - `tests/`: IPC rejection and display-format tests.
 - `scripts/`: development, build, launch, and read-only desktop verification.
 
+## Interface design and preferences
+
+`src/styles.css` defines shared semantic color tokens for light and dark themes. Every screen uses the same brutalist geometry, typography, borders, hard shadows and control states. Accent colors remain solid, and dark surfaces have explicit contrasting borders. Theme-specific colors are confined to the token declarations instead of duplicated page styles.
+
+`src/lib/theme.ts` resolves a valid stored preference or the system preference, and applies it before Svelte mounts. `ThemeSwitch.svelte` owns the two-button control and uses Svelte 5 state plus explicit event handlers. The key `xspeedup.theme` is stored in the renderer's localStorage; failures are contained so that the interface remains usable. Electron shows the window only once its initial content is ready. Switching themes does not remount pages or invoke the Windows agent.
+
 ## Trust boundary
 
 The renderer uses `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, a restrictive CSP, denied permissions, and blocked navigation/new windows/webviews. Only the app's main frame may invoke the dedicated IPC handler. Renderer-controlled paths and shell commands are not accepted.

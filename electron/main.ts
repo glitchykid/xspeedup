@@ -28,7 +28,8 @@ async function createWindow() {
     minWidth: 1020,
     minHeight: 720,
     title: 'X SpeedUp',
-    backgroundColor: '#0d111b',
+    backgroundColor: '#f3f0e7',
+    show: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -38,6 +39,7 @@ async function createWindow() {
       webSecurity: true,
     },
   });
+  window.once('ready-to-show', () => window?.show());
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());

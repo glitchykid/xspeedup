@@ -1,20 +1,34 @@
-# Verification — 0.1.0
+# Verification
+
+## 0.2.0 — 2026-09-28
+
+- Svelte diagnostics: 0 errors and 0 warnings; TypeScript checks passed.
+- All six screens inspected in light and dark themes using the Electron smoke test.
+- The first launch follows the emulated system preference. A manual choice survives reload and takes priority over the system setting.
+- The theme selector works with keyboard input and preserves an existing cleanup selection.
+- Both themes fit the minimum 1020 × 720 application window without horizontal page overflow.
+- Renderer isolation and arbitrary IPC rejection remain verified. No host maintenance actions are executed by the UI checks.
+- The Windows x64 NSIS installer was built successfully, and the same themed smoke checks passed against the packaged executable without a development SDK dependency.
+
+Generated screenshots are stored locally under `artifacts/screenshots/` with `-light` and `-dark` suffixes and are not committed. The previous saved theme is restored after the smoke test.
+
+## 0.1.0
 
 Verified on 2026-09-28 on a Windows 10 x64 desktop.
 
-| Check | Result |
-| --- | --- |
-| Svelte diagnostics | 0 errors, 0 warnings |
-| TypeScript 7 compilation checks | Passed |
-| .NET compilation | 0 errors, 0 warnings |
-| Native regression harness | 30 assertions passed |
-| TypeScript tests | 3 tests passed |
-| Development Electron integration | All six screens passed |
-| Packaged Electron integration | All six screens passed, without `DOTNET_ROOT` |
-| Renderer isolation and denied arbitrary IPC | Passed in Electron integration |
-| Production UI and self-contained Windows agent | Built |
-| Windows x64 NSIS installer | Built |
-| npm dependency audit at installation | 0 reported vulnerabilities |
+| Check                                          | Result                                        |
+| ---------------------------------------------- | --------------------------------------------- |
+| Svelte diagnostics                             | 0 errors, 0 warnings                          |
+| TypeScript 7 compilation checks                | Passed                                        |
+| .NET compilation                               | 0 errors, 0 warnings                          |
+| Native regression harness                      | 30 assertions passed                          |
+| TypeScript tests                               | 3 tests passed                                |
+| Development Electron integration               | All six screens passed                        |
+| Packaged Electron integration                  | All six screens passed, without `DOTNET_ROOT` |
+| Renderer isolation and denied arbitrary IPC    | Passed in Electron integration                |
+| Production UI and self-contained Windows agent | Built                                         |
+| Windows x64 NSIS installer                     | Built                                         |
+| npm dependency audit at installation           | 0 reported vulnerabilities                    |
 
 Native regression tests cover containment and traversal rejection, age filtering, scan replay/unknown selections, changed and locked file handling, deletion accounting, persistent journals, ambiguous startup commands, backup-before-write ordering, registry type restoration, external-change conflicts, catalog restrictions, and retrying partial service restoration.
 

@@ -2,7 +2,15 @@
 
 A Windows desktop maintenance app with an Electron + Svelte interface and a C#/.NET agent. Inspect disk and memory usage, remove old temporary files, review stale startup registry values, choose optional service profiles, and close unused applications. The interface is in Russian; project documentation is in English.
 
-**Status:** functional first release for Windows x64. Operations are explicit, local, and reviewed before execution. There is no automatic optimization, telemetry, or promise of a particular performance gain.
+**Status:** version 0.2.0 for Windows x64, with a brutalist interface and light/dark themes. Operations are explicit, local, and reviewed before execution. There is no automatic optimization, telemetry, or promise of a particular performance gain.
+
+## Interface and themes
+
+The interface uses a brutalist visual language: bold typography, square panels, strong borders, solid lime/violet accents, and hard offset shadows. These styles cover all six screens, including lists, notices, disabled controls, selection states, and keyboard focus.
+
+Use **Светлая** (Light) or **Тёмная** (Dark) in the top bar to switch themes without losing the current page, scan, or selection. The first launch follows the Windows color preference. An explicit choice is saved locally and takes priority on subsequent launches. Theme changes do not execute any maintenance action. If local preference storage is unavailable, switching still works for the current session.
+
+The layout supports the app's minimum 1020 × 720 window size and respects reduced-motion preferences. Native Windows confirmation dialogs retain the operating system's appearance.
 
 ## Features
 
@@ -43,9 +51,11 @@ npm start
 npm run package
 ```
 
-Output: `release/X SpeedUp Setup 0.1.0.exe`, with an unpacked application in `release/win-unpacked/`. The installer includes the .NET runtime; end users do not need Node.js or .NET installed. The first packaging run downloads Electron and NSIS build tools.
+Output: `release/X SpeedUp Setup 0.2.0.exe`, with an unpacked application in `release/win-unpacked/`. The installer includes the .NET runtime; end users do not need Node.js or .NET installed. The first packaging run downloads Electron and NSIS build tools.
 
-The build is unsigned unless a code-signing certificate is configured in your environment. Windows may display an unknown-publisher prompt. No signing credentials are stored in this repository. Installers are generated locally; `npm run package` does not publish a GitHub release.
+The build is unsigned unless a code-signing certificate is configured in your environment. Windows may display an unknown-publisher prompt. No signing credentials are stored in this repository. `npm run package` creates local artifacts. Installers are also published through the version-tag release workflow described below.
+
+Download published installers from [GitHub Releases](https://github.com/glitchykid/xspeedup/releases).
 
 Normal cleanup, inspection, and current-user registry operations use standard permissions. For service changes/restores, launch the installed application with **Run as administrator** using the same Windows account. The app does not elevate itself automatically. Elevated execution under a different account targets that account's registry and backup folder.
 
@@ -69,9 +79,18 @@ npm run test:desktop # Real Electron / Windows read-only integration smoke test
 npm run test:desktop -- --packaged # Same checks against release/win-unpacked after packaging
 ```
 
-The native test harness creates disposable fixtures under `.cache/tests` and uses in-memory registry/service adapters. It never cleans a real temporary folder, edits the live registry, changes a live service, or closes a user's app. Fixtures are retained for inspection. The desktop smoke test reads actual Windows state and captures local screenshots in `artifacts/screenshots`; screenshots are excluded from Git because they contain device information.
+The native test harness creates disposable fixtures under `.cache/tests` and uses in-memory registry/service adapters. It never cleans a real temporary folder, edits the live registry, changes a live service, or closes a user's app. Fixtures are retained for inspection. The desktop smoke test reads actual Windows state, checks all six screens in both themes, verifies theme persistence/system fallback/keyboard controls, and checks the minimum window size. It restores the previous saved theme on completion. Screenshots in `artifacts/screenshots` are excluded from Git because they contain device information.
 
 GitHub Actions runs Windows build and native/type checks. The interactive desktop smoke test is intended for a logged-in Windows desktop session. Real administrator service writes still need acceptance testing in a disposable Windows VM; they are deliberately not performed on the development machine.
+
+## Publishing a release
+
+1. Update `package.json`, the lockfile, displayed version, changelog, and `docs/releases/<version>.md`.
+2. Verify and commit the changes, then push the branch.
+3. Create an annotated `v<version>` tag matching `package.json` and push that tag.
+4. The **Publish Windows release** workflow runs native tests, checks types, builds the self-contained agent and NSIS installer, then publishes the installer and `SHA256SUMS.txt` to GitHub Releases.
+
+The workflow uses the repository's short-lived `GITHUB_TOKEN` with `contents: write`; a personal token is not needed. Failed builds do not publish a release. Packaging tools are downloaded automatically when needed; on Windows, missing development tools can also be installed with winget.
 
 ## Technology versions
 

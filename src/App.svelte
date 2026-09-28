@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Icon from './lib/Icon.svelte';
+  import ThemeSwitch from './lib/ThemeSwitch.svelte';
   import { bytes, date, startMode } from './lib/format';
   import type {
     ActionResult,
@@ -223,17 +224,17 @@
     </a>
     <span class="nav-caption">РАБОЧЕЕ ПРОСТРАНСТВО</span>
     <nav aria-label="Разделы приложения">
-      {#each pages as item}
+      {#each pages as item, index}
         <button
           class:active={page === item.id}
           class:history-nav={item.id === 'history'}
           disabled={!!busy}
           onclick={() => navigate(item.id)}
+          aria-label={item.label}
           aria-current={page === item.id ? 'page' : undefined}
         >
-          <Icon name={item.icon} size={19} /><span>{item.label}</span>{#if page === item.id}<i
-              class="nav-dot"
-            ></i>{/if}
+          <span class="nav-index" aria-hidden="true">0{index + 1}</span>
+          <Icon name={item.icon} size={18} /><span>{item.label}</span>
         </button>
       {/each}
     </nav>
@@ -242,23 +243,25 @@
         <Icon name="shield" size={22} /><strong>Локально. Прозрачно.</strong>
         <p>Данные остаются<br />на вашем компьютере.</p>
       </div>
-      <div class="version"><span class="status-dot"></span> X SpeedUp <span>v0.1.0</span></div>
+      <div class="version"><span class="status-dot"></span> X SpeedUp <span>v0.2.0</span></div>
     </div>
   </aside>
 
   <div class="workspace">
     <header class="topbar">
-      <div>
+      <div class="breadcrumbs">
         <span class="breadcrumb">Рабочее пространство</span><span class="slash">/</span
         >{activePage.label}
       </div>
-      <span class="connection"
-        ><span class:offline={!system} class="status-dot"></span>{system
-          ? 'Подключено к Windows'
-          : desktop
-            ? 'Подключение…'
-            : 'Предпросмотр интерфейса'}</span
-      >
+      <div class="topbar-actions">
+        <span class="connection"
+          ><span class:offline={!system} class="status-dot"></span>{system
+            ? 'Подключено к Windows'
+            : desktop
+              ? 'Подключение…'
+              : 'Предпросмотр интерфейса'}</span
+        ><ThemeSwitch />
+      </div>
     </header>
     <main>
       <div class="page-heading">
@@ -309,8 +312,8 @@
       {#if page === 'overview'}
         <section class="hero panel">
           <div class="hero-copy">
-            <span class="pill"><span class="status-dot"></span>НАЧНИТЕ С АНАЛИЗА</span>
-            <h2>Дайте компьютеру<br /><span>больше свободы.</span></h2>
+            <span class="pill">01 / НАЧНИТЕ С АНАЛИЗА</span>
+            <h2>Уберите лишнее.<br /><span>Верните контроль.</span></h2>
             <p>
               Проверьте временные файлы и выберите,<br class="wide-only" /> что удалить. Каждый шаг —
               под вашим контролем.
@@ -325,13 +328,12 @@
             >
           </div>
           <div class="hero-visual" aria-hidden="true">
-            <div class="orbit orbit-outer"></div>
-            <div class="orbit orbit-inner"></div>
-            <div class="orbit-node node-one"><Icon name="clean" /></div>
-            <div class="orbit-node node-two"><Icon name="registry" /></div>
-            <div class="orbit-node node-three"><Icon name="sliders" /></div>
-            <div class="core"><Icon name="bolt" size={72} /></div>
-            <div class="visual-caption">МЕНЬШЕ ЛИШНЕГО<span>Больше возможностей</span></div>
+            <div class="hero-stamp">
+              <span class="stamp-label">X SPEEDUP / WINDOWS</span><span class="stamp-x"
+                >X<Icon name="arrow" size={64} /></span
+              ><span class="stamp-footer">ВАШ ПК.<br />ВАШИ ПРАВИЛА.</span>
+            </div>
+            <span class="visual-caption">АНАЛИЗ → ВЫБОР → ДЕЙСТВИЕ</span>
           </div>
         </section>
         <div class="section-heading">
